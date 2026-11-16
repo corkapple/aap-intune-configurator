@@ -38,6 +38,20 @@ The **Rollout plan** tab flags common mistakes before you assign anything, inclu
 - tokens and webhook URLs that local users can read
 - a `main` ref, which breaks the hash check after the next upstream commit
 
+## Input safety
+
+Values you type end up inside shell scripts and XML, so they are checked before anything is generated:
+
+- **Custom ref:** letters, digits, `.`, `-` and `_` only (a tag, branch or commit SHA). There's no `/` and no `..`.
+- **SHA-256 hash:** exactly 64 hex characters.
+- **Profile identifier prefix:** reverse-DNS form, for example `com.contoso`.
+
+If a value fails, that file isn't generated and **Download all** is blocked, so nothing unsafe can be copied or downloaded. Settings loaded from browser storage or a config file are checked the same way.
+
+The generated install script exits with AAP's own error code if the self-install fails, and fails if AAP or its LaunchDaemon is missing afterwards, so Intune reports the failure instead of a false success.
+
+**Secrets.** `GitHubAPIToken` and the Teams, Slack and Google Chat webhook URLs are kept for the current visit only. They are never written to browser storage, and **Save config** leaves them out and lists them under `redacted`. They still go into the profile you download, because AAP needs them there.
+
 ## Version notes
 
 - Tracks **AAP 3.7.7**. The installer defaults to the `Version_3.7.7` tag, with verified SHA-256 hashes for 3.7.3 to 3.7.7.
@@ -59,6 +73,9 @@ curl -sL https://raw.githubusercontent.com/App-Auto-Patch/App-Auto-Patch/Version
 - booleans use the right form for each AAP version
 - a config survives a save-and-load round trip
 - the zip bundle is valid
+- the generated scripts pass `zsh -n` (when zsh is installed) and the installer passes failures back to Intune
+- hostile refs, hashes and prefixes block the affected files
+- secrets never reach browser storage or config exports
 
 ```sh
 npm install

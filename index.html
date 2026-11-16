@@ -66,7 +66,7 @@ label.f{display:grid;gap:4px;min-width:0}
 input[type=text],input[type=number],input[type=time],input[type=url],select,textarea{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
 textarea{font-family:var(--f-mono);font-size:12px;resize:vertical}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:start}
 .help{font-size:12px;color:var(--muted)}
 .btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:500 13px/1 var(--f-body);padding:8px 12px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -147,6 +147,9 @@ ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%) translateY(20px);background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:7px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .note{font-size:12px;color:var(--muted);margin-top:10px}
+.err{font-size:12px;color:var(--bad)}
+.err:empty{display:none}
+input[aria-invalid="true"]{border-color:var(--bad)}
 .hidden-dl .dl{display:none}
 .modal{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);color:var(--fg);padding:0;max-width:min(680px,calc(100vw - 32px));width:100%}
 .modal::backdrop{background:rgb(10 14 22 / .45)}
@@ -201,11 +204,12 @@ ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
                 <option value="custom">Custom tag or commit…</option>
               </select>
             </label>
-            <label class="f" id="refCustomWrap" hidden><span>Custom ref</span><input type="text" id="refCustom" placeholder="Version_3.8.0 or a commit SHA"></label>
+            <label class="f" id="refCustomWrap" hidden><span>Custom ref</span><input type="text" id="refCustom" placeholder="Version_3.8.0 or a commit SHA" spellcheck="false" aria-describedby="refErr"><span class="err" id="refErr" role="alert"></span></label>
           </div>
           <label class="f" style="margin-top:12px"><span>SHA-256 of App-Auto-Patch-via-Dialog.zsh</span>
-            <input type="text" id="hash" spellcheck="false" style="font-family:var(--f-mono)">
+            <input type="text" id="hash" spellcheck="false" style="font-family:var(--f-mono)" aria-describedby="hashErr hashHelp">
           </label>
+          <span class="err" id="hashErr" role="alert"></span>
           <p class="help" id="hashHelp"></p>
           <div class="card" style="margin-top:6px">
             <div class="help" style="margin-bottom:6px">Recompute the hash on any Mac after choosing a different ref:</div>
@@ -277,7 +281,7 @@ ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
         <p class="lead">Optional payloads bundled into the .mobileconfig on the right. The Intune preference file only ever carries AAP's own keys.</p>
         <div class="row">
           <label class="f"><span>Organization</span><input type="text" id="org" placeholder="Contoso IT"></label>
-          <label class="f"><span>Profile identifier prefix</span><input type="text" id="idPrefix" placeholder="com.contoso" spellcheck="false"></label>
+          <label class="f"><span>Profile identifier prefix</span><input type="text" id="idPrefix" placeholder="com.contoso" spellcheck="false" aria-describedby="prefixErr"><span class="err" id="prefixErr" role="alert"></span></label>
         </div>
         <div style="display:grid;gap:12px;margin-top:16px">
           <label class="sw"><input type="checkbox" id="xLogin" checked><i></i><span><b style="color:var(--fg)">Managed login item</b> for <code class="inl">xyz.techitout.aap</code>. Stops users switching off the LaunchDaemon in System Settings › Login Items, and suppresses the "Background item added" alert.</span></label>
@@ -464,13 +468,28 @@ function freshState(){
   };
 }
 let S = freshState();
+// Fields that only take a fixed set of values; anything else loaded from storage or a config file
+// falls back to the default, so it can never reach a generated script.
+const ALLOWED = { method:["script","pkg"], reinstall:["missing","older","always"], notifStyle:["1","2"],
+                  ca:["AAPVersion","AAPPatchingCompletionStatus","AAPPatchingCompleteDate","NextAutoLaunch","AAPStatus"],
+                  ltab:["install","settings","extras"], otab:["pref","mc","inst","ca","un","plan"] };
+const BOOL_FIELDS = ["flagResetDefaults","flagResetLabels","flagVerbose","xLogin","xNotif","onlyOn","hashEdited"];
+const TEXT_FIELDS = ["ref","refCustom","hash","org","idPrefix"];
+// Credentials are kept in memory for this visit only: never written to browser storage or config exports.
+const SECRET_KEYS = ["GitHubAPIToken","WebhookURLTeams","WebhookURLSlack","WebhookURLGoogleChat"];
 function mergeState(saved){
   // Returns a complete state from a saved/imported one, or null if it isn't usable.
   if(!saved || typeof saved!=="object" || !saved.values || typeof saved.values!=="object") return null;
-  const base=freshState(), next=Object.assign(base, saved);
+  const base=freshState(), next=Object.assign(freshState(), saved);  // base stays untouched as the source of defaults
+  for(const [f,list] of Object.entries(ALLOWED)) if(!list.includes(next[f])) next[f]=base[f];
+  for(const f of BOOL_FIELDS) next[f]=!!next[f];
+  for(const f of TEXT_FIELDS) next[f]=typeof next[f]==="string"?next[f]:base[f];
+  if(next.ref!=="custom" && !(next.ref in HASHES)) next.ref=base.ref;
   next.values=Object.assign(freshState().values, saved.values);
   next.include=Object.assign(freshState().include, (saved.include&&typeof saved.include==="object")?saved.include:{});
-  next.uuids=(saved.uuids&&typeof saved.uuids==="object")?saved.uuids:{};
+  next.uuids={};
+  if(saved.uuids&&typeof saved.uuids==="object") for(const [k,v] of Object.entries(saved.uuids)) if(/^[0-9A-F-]{36}$/.test(v)) next.uuids[k]=v;
+  for(const k of SECRET_KEYS) if(k in next.values) next.values[k]=""; // never restored from storage
   next.extraKeys={};
   for(const k of Object.keys(next.values)){ if(!(k in SCHEMA)){ delete next.values[k]; delete next.include[k]; continue; } next.values[k]=norm(k,next.values[k]); }
   if(saved.ref==="Version_3.7.5" && saved.hash===HASHES["Version_3.7.5"]){ next.ref="Version_3.7.7"; next.hash=HASHES["Version_3.7.7"]; }
@@ -478,11 +497,16 @@ function mergeState(saved){
 }
 try{
   const merged = mergeState(JSON.parse(localStorage.getItem(STORE_KEY)||"null"));
-  if(merged) S = merged;
+  if(merged){ S = merged; save(); }  // re-save at once so secrets stored by older versions are scrubbed
 }catch(e){ S = freshState(); }
 if(!Object.keys(S.include).some(k=>S.include[k])) applyPreset("balanced", true);
 
-function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){} }
+function persistable(){
+  const copy=JSON.parse(JSON.stringify(S));
+  for(const k of SECRET_KEYS) if(copy.values && k in copy.values) copy.values[k]="";
+  return copy;
+}
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(persistable())); }catch(e){} }
 function uuid(name){
   if(!S.uuids[name]){
     S.uuids[name] = (crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==="x"?r:(r&3|8)).toString(16)})).toUpperCase();
@@ -566,6 +590,7 @@ function download(name, text){
   saveBlob(name.replace(/\.[^.]+$/,"")+".zip", makeZip([{name, text, exec:isExec(name)}]));
 }
 function bundleFiles(){
+  if(hardErrors().length) throw new Error("inputs are invalid");
   const f=[];
   f.push({name:"1-Configuration-Profile/xyz.techitout.appAutoPatch.xml", text:prefFile()});
   f.push({name:"1-Configuration-Profile/AppAutoPatch.mobileconfig", text:mobileconfig()});
@@ -609,7 +634,11 @@ ${S.method==="script"?`  AAP-Intune-Installer.zsh
 
 ${iss.length?"Checks before assigning:\n"+iss.map(([l,m])=>`  [${l==="bad"?"FIX":"CHECK"}] ${m}`).join("\n")+"\n":""}`;
 }
-function downloadAll(){ saveBlob("AppAutoPatch-Intune.zip", makeZip(bundleFiles())); }
+function downloadAll(){
+  const errs=hardErrors();
+  if(errs.length){ setO("plan"); toast("Fix the items marked Fix before downloading."); return; }
+  saveBlob("AppAutoPatch-Intune.zip", makeZip(bundleFiles()));
+}
 
 /* ---------- settings UI ---------- */
 function splitLabels(v){ return String(v||"").split(/\s+/).filter(Boolean); }
@@ -683,6 +712,7 @@ function control(k){
   if(inp.type==="number"){ inp.min=0; inp.step=1; inp.inputMode="numeric"; }
   if(k==="GitHubAPIToken"){ inp.type="text"; inp.autocomplete="off"; inp.style.fontFamily="var(--f-mono)"; inp.placeholder="github_pat_…"; }
   if(/URL/.test(k)) inp.placeholder="https://…";
+  if(SECRET_KEYS.includes(k)){ inp.autocomplete="off"; const h=document.createElement("div"); h.className="help"; h.textContent="Kept for this visit only. Not saved in your browser or in Save config, so re-enter it after reloading."; wrap.append(inp,h); inp.oninput=()=>setVal(k, inp.value); inp.value=v??""; inp.spellcheck=false; return wrap; }
   if(/Script$/.test(k)) inp.placeholder="/Library/Management/AppAutoPatch/Hooks/…";
   inp.spellcheck=false; inp.value=v??"";
   inp.oninput=()=>setVal(k, s.t==="integer"?(inp.value===""?"":Number(inp.value)):inp.value);
@@ -753,6 +783,45 @@ function updateGroupCounts(){
   for(const g of GROUPS){ const el=document.querySelector(`[data-gc="${g.id}"]`); if(!el) continue; const n=g.keys.filter(k=>S.include[k]).length; el.textContent=n?`${n} set`:`${g.keys.length} keys`; el.classList.toggle("on",n>0); }
 }
 
+/* ---------- input validation (gates every generated file) ---------- */
+// Values typed by the user end up inside shell scripts and XML, so they are checked against strict
+// formats before anything is generated, copied or downloaded.
+const RE_REF  = /^(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;      // tag, branch or commit SHA; no "/" or ".."
+const RE_HASH = /^[a-f0-9]{64}$/;
+const RE_PREFIX = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62})(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}))+$/;  // reverse DNS, 2+ labels
+function refError(){
+  if(S.method!=="script") return "";
+  if(S.ref!=="custom") return (S.ref in HASHES) ? "" : "Choose a version from the list.";
+  const r=S.refCustom.trim();
+  if(!r) return "Enter a tag (for example Version_3.8.0), a branch, or a commit SHA.";
+  if(!RE_REF.test(r)) return "Use only letters, digits, dot, dash and underscore. This is how GitHub tags, branches and commit SHAs look.";
+  return "";
+}
+function hashError(){
+  if(S.method!=="script") return "";
+  const h=S.hash.trim().toLowerCase();
+  if(!h) return "Paste the SHA-256 hash of the script for this ref.";
+  if(!RE_HASH.test(h)) return "A SHA-256 hash is exactly 64 characters, 0-9 and a-f.";
+  return "";
+}
+function prefixError(){
+  const p=(S.idPrefix||"").trim();
+  if(!p) return "Enter a reverse-DNS prefix such as com.contoso.";
+  if(!RE_PREFIX.test(p)) return "Use reverse-DNS form: letters, digits and dashes, separated by dots (com.contoso).";
+  return "";
+}
+// Hard errors block the affected files. Each entry: [files it blocks, message]
+function hardErrors(){
+  const out=[];
+  const r=refError(), h=hashError(), p=prefixError();
+  if(r) out.push(["inst","Install script: "+r]);
+  if(h) out.push(["inst","Install script: "+h]);
+  if(p) out.push(["mc","Profile identifier prefix: "+p]);
+  return out;
+}
+const blocked = file => hardErrors().some(([f])=>f===file);
+const cleanHash = () => S.hash.trim().toLowerCase();
+
 /* ---------- validation ---------- */
 function issues(){
   const v=S.values, on=k=>S.include[k], out=[];
@@ -775,8 +844,7 @@ function issues(){
   if(val("WorkflowDisableRelaunch")===true && !(on("WorkflowScheduledDiscovery")&&v.WorkflowScheduledDiscovery)) out.push(["warn","Relaunch is disabled, so AAP runs once after install and then only when triggered. Turn on Scheduled Discovery to keep reporting."]);
   if(on("SkipPreUpdateVerification")&&v.SkipPreUpdateVerification) out.push(["warn","Skipping pre-update verification removes the Gatekeeper/Team ID check. Use it only to work around a specific app."]);
   if(S.method==="script" && S.ref==="main") out.push(["warn","Ref main changes with every commit, so the hash check will start failing after the next push. Pin a Version_ tag."]);
-  if(S.method==="script" && !/^[a-f0-9]{64}$/i.test(S.hash.trim())) out.push(["bad","The SHA-256 hash should be 64 hex characters."]);
-  if(S.method==="script" && S.ref==="custom" && !S.refCustom.trim()) out.push(["bad","Enter a custom tag or commit."]);
+  for(const [,msg] of hardErrors()) out.push(["bad", msg+" Downloads of this file are blocked until it's fixed."]);
   const extra=Object.keys(S.extraKeys||{}); if(extra.length) out.push(["warn",`Imported keys AAP doesn't recognise were dropped: ${extra.join(", ")}.`]);
   if(!Object.values(S.include).some(Boolean)) out.push(["warn","No keys are ticked. AAP will run entirely on built-in defaults."]);
   return out;
@@ -799,7 +867,7 @@ function keysXML(indent){
 function prefFile(){ return keysXML("") + "\n"; }
 function prefPlist(){ return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n${keysXML("\t")}\n</dict>\n</plist>\n`; }
 
-function prefix(){ return (S.idPrefix||"com.example").replace(/\s+/g,"").replace(/\.$/,""); }
+function prefix(){ return xml((S.idPrefix||"").trim()); }  // validated by prefixError(); escaped as a second guard
 function mobileconfig(){
   const p=prefix(), org=S.org?`\t<key>PayloadOrganization</key>\n\t<string>${xml(S.org)}</string>\n`:"";
   const payloads=[];
@@ -902,6 +970,7 @@ ${org}\t<key>PayloadScope</key>
 function refValue(){ return S.ref==="custom"?(S.refCustom.trim()||"Version_x.y.z"):S.ref; }
 function expectedVersion(){ const m=/^Version_(\d+(?:\.\d+)*)$/.exec(refValue()); return m?m[1]:""; }
 function installScript(){
+  if(blocked("inst")) throw new Error("installer inputs are invalid");
   const ref=refValue(), ver=expectedVersion();
   const flags=[S.flagResetDefaults&&"--reset-defaults",S.flagResetLabels&&"--reset-labels",S.flagVerbose&&"--verbose-mode"].filter(Boolean).join(" ");
   const mode=S.reinstall==="older"&&!ver?"missing":S.reinstall;
@@ -925,9 +994,9 @@ AAP_FOLDER="/Library/Management/AppAutoPatch"
 AAP_LOCAL_PLIST="\${AAP_FOLDER}/xyz.techitout.appAutoPatch"   # no ".plist"
 AAP_DAEMON_LABEL="xyz.techitout.aap"
 
-GITHUB_REF="${ref}"
-EXPECTED_VERSION="${ver}"
-HASH_CHECK="${S.hash.trim()}"
+GITHUB_REF='${ref}'
+EXPECTED_VERSION='${ver}'
+HASH_CHECK='${cleanHash()}'
 REINSTALL_MODE="${mode}"   # missing | older | always
 AAP_FLAGS=(${flags})
 
@@ -979,20 +1048,31 @@ log "Checksum verified"
 chmod 755 "\${SCRIPT_PATH}"
 "\${SCRIPT_PATH}" "\${AAP_FLAGS[@]}"
 rc=$?
-log "AAP self-install exited with \${rc}"
+if (( rc != 0 )); then
+    log "AAP self-install failed with exit code \${rc}" >&2
+    exit \${rc}
+fi
+log "AAP self-install finished"
+
+if [[ ! -x "\${AAP_FOLDER}/appautopatch" ]]; then
+    log "AAP is not in \${AAP_FOLDER} after install" >&2
+    exit 1
+fi
 
 sleep 5
 if ! launchctl print "system/\${AAP_DAEMON_LABEL}" >/dev/null 2>&1; then
-    if [[ -f "/Library/LaunchDaemons/\${AAP_DAEMON_LABEL}.plist" ]]; then
-        log "Bootstrapping \${AAP_DAEMON_LABEL}"
-        launchctl bootstrap system "/Library/LaunchDaemons/\${AAP_DAEMON_LABEL}.plist" &
-        disown
-    else
+    if [[ ! -f "/Library/LaunchDaemons/\${AAP_DAEMON_LABEL}.plist" ]]; then
         log "LaunchDaemon plist not found after install" >&2
+        exit 1
+    fi
+    log "Bootstrapping \${AAP_DAEMON_LABEL}"
+    if ! launchctl bootstrap system "/Library/LaunchDaemons/\${AAP_DAEMON_LABEL}.plist"; then
+        log "launchctl bootstrap failed" >&2
         exit 1
     fi
 fi
 
+log "App Auto-Patch is installed and its LaunchDaemon is loaded"
 exit 0
 `;
 }
@@ -1070,6 +1150,10 @@ function hlSh(s){
 function codeBlock(name, text, lang, intro){
   return `${intro||""}<div class="ohead"><span class="fname">${esc(name)}</span><div class="btns"><button class="btn sm primary" data-act="copy">Copy</button><button class="btn sm dl" data-act="dl" data-name="${esc(name)}" title="${inFrame?"Saved as a .zip so the filename and permissions are kept":""}">${inFrame?"Download (.zip)":"Download"}</button></div></div><pre class="code" tabindex="0">${lang==="sh"?hlSh(text):hlXML(text)}</pre>`;
 }
+function blockedBlock(file){
+  const msgs=hardErrors().filter(([f])=>f===file).map(([,m])=>m);
+  return `<div class="issues">${msgs.map(m=>`<div class="iss bad"><span class="tag">Fix</span><span>${esc(m)}</span></div>`).join("")}</div><p class="help">This file isn't generated until the value above is fixed, so nothing unsafe can be copied or downloaded.</p>`;
+}
 function kv(rows){ return `<div class="kv">${rows.map(([a,b])=>`<div>${a}</div><div>${b}</div>`).join("")}</div>`; }
 let currentText="";
 let prefWrap=false;
@@ -1090,6 +1174,7 @@ function renderOut(){
       break;
     }
     case "mc":{
+      if(blocked("mc")){ currentText=""; html=`<p class="lead">The .mobileconfig needs a valid profile identifier prefix.</p>`+blockedBlock("mc")+`<div class="btns"><button type="button" class="btn sm" data-goto="extras">Edit prefix</button></div>`; break; }
       currentText = mobileconfig();
       const parts=["AAP preferences",S.xLogin&&"managed login item",S.xNotif&&"swiftDialog notifications"].filter(Boolean);
       html = `<p class="lead">One unsigned profile with ${parts.join(", ")}. Upload under <b>Templates › Custom</b> with deployment channel <b>Device channel</b>. Use this <i>instead of</i> the preference file, not alongside it, or the AAP domain is delivered twice.</p>`
@@ -1103,6 +1188,9 @@ function renderOut(){
         html = `<p class="lead">Add the release package in <b>Apps › macOS › Create › macOS app (PKG)</b>.</p>`
           + kv([["App package file","<code>App-Auto-Patch</code> .pkg from the latest GitHub release"],["Publisher","App Auto-Patch"],["Minimum operating system","macOS 12 Monterey (AAP refuses to run on older)"],["Pre-/post-install script","None needed; the package's own postinstall runs AAP"],["Detection rules","Included app: <code>xyz.techitout.appAutoPatch.installer</code>"],["Ignore app version","No, so uploading a newer pkg upgrades Macs on an older one"],["Assignment","Required, to the same device group as the profile"]])
           + `<p class="note">If you upload a newer pkg later, Intune upgrades Macs that report an older package version. That depends on the versioned pkg introduced in 3.6.x.</p>`;
+      } else if(blocked("inst")){
+        currentText="";
+        html = `<p class="lead">The install script needs a valid version and hash.</p>` + blockedBlock("inst") + `<div class="btns"><button type="button" class="btn sm" data-goto="install">Edit install method</button></div>`;
       } else {
         currentText = installScript();
         html = `<p class="lead">Add under <b>Devices › Scripts and remediations › Platform scripts › Add › macOS</b>.</p>`
@@ -1152,6 +1240,16 @@ function renderOut(){
 }
 
 /* ---------- install pane ---------- */
+function showFieldErrors(){
+  for(const [id,errId,fn] of [["refCustom","refErr",refError],["hash","hashErr",hashError],["idPrefix","prefixErr",prefixError]]){
+    const m = (id==="refCustom" && S.ref!=="custom") ? "" : fn();
+    $("#"+errId).textContent=m; $("#"+id).setAttribute("aria-invalid", m?"true":"false");
+  }
+  const okRef = !refError();
+  $("#hashCmd").textContent = okRef
+    ? `curl -sL https://raw.githubusercontent.com/App-Auto-Patch/App-Auto-Patch/${refValue()}/App-Auto-Patch-via-Dialog.zsh | shasum -a 256`
+    : "Enter a valid ref to get the command.";
+}
 function syncInstall(){
   document.querySelectorAll("#method button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===S.method));
   $("#m-script").hidden=S.method!=="script"; $("#m-pkg").hidden=S.method!=="pkg";
@@ -1160,7 +1258,7 @@ function syncInstall(){
   const known=HASHES[S.ref];
   $("#hashHelp").textContent = S.ref==="custom" ? "Paste the hash you computed for your ref." :
     known && S.hash.trim()===known ? `Pre-filled from the ${S.ref} file as published on ${HASH_DATE}.` : known ? "Edited. The published hash for this ref is "+known.slice(0,12)+"…" : "";
-  $("#hashCmd").textContent=`curl -sL https://raw.githubusercontent.com/App-Auto-Patch/App-Auto-Patch/${refValue()}/App-Auto-Patch-via-Dialog.zsh | shasum -a 256`;
+  showFieldErrors();
   document.querySelectorAll("#reinstall button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===S.reinstall));
   const v=expectedVersion();
   $("#reinstallHelp").textContent = {
@@ -1194,10 +1292,10 @@ document.querySelectorAll("#otabs .tab").forEach(b=>b.onclick=()=>setO(b.dataset
 document.querySelectorAll("#method button").forEach(b=>b.onclick=()=>{ S.method=b.dataset.v; syncInstall(); if(S.otab==="pref"||S.otab==="mc"){} renderOut(); save(); });
 document.querySelectorAll("#reinstall button").forEach(b=>b.onclick=()=>{ S.reinstall=b.dataset.v; syncInstall(); renderOut(); save(); });
 $("#ref").onchange=e=>{ S.ref=e.target.value; if(HASHES[S.ref]) S.hash=HASHES[S.ref]; else if(S.ref==="custom") S.hash=""; syncInstall(); renderOut(); save(); };
-$("#refCustom").oninput=e=>{ S.refCustom=e.target.value; $("#hashCmd").textContent=`curl -sL https://raw.githubusercontent.com/App-Auto-Patch/App-Auto-Patch/${refValue()}/App-Auto-Patch-via-Dialog.zsh | shasum -a 256`; renderOut(); save(); };
-$("#hash").oninput=e=>{ S.hash=e.target.value.trim(); renderOut(); save(); const known=HASHES[S.ref]; $("#hashHelp").textContent= known? (S.hash===known?`Pre-filled from the ${S.ref} file as published on ${HASH_DATE}.`:"Edited. The published hash for this ref is "+known.slice(0,12)+"…"):""; };
+$("#refCustom").oninput=e=>{ S.refCustom=e.target.value; showFieldErrors(); renderOut(); save(); };
+$("#hash").oninput=e=>{ S.hash=e.target.value.trim(); showFieldErrors(); renderOut(); save(); const known=HASHES[S.ref]; $("#hashHelp").textContent= known? (S.hash===known?`Pre-filled from the ${S.ref} file as published on ${HASH_DATE}.`:"Edited. The published hash for this ref is "+known.slice(0,12)+"…"):""; };
 for(const id of ["flagResetDefaults","flagResetLabels","flagVerbose","xLogin","xNotif"]) $("#"+id).onchange=e=>{ S[id]=e.target.checked; syncInstall(); renderOut(); save(); };
-for(const id of ["org","idPrefix"]) $("#"+id).oninput=e=>{ S[id]=e.target.value; renderOut(); save(); };
+for(const id of ["org","idPrefix"]) $("#"+id).oninput=e=>{ S[id]=e.target.value; showFieldErrors(); renderOut(); save(); };
 for(const id of ["notifStyle","ca"]) $("#"+id).onchange=e=>{ S[id]=e.target.value; renderOut(); save(); };
 document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>copyText($("#"+b.dataset.copy).textContent));
 
@@ -1249,9 +1347,12 @@ const CONFIG_SCHEMA_VERSION = 1;
 const CONFIG_FIELDS = ["method","ref","refCustom","hash","reinstall","flagResetDefaults","flagResetLabels","flagVerbose","org","idPrefix","xLogin","xNotif","notifStyle","ca","uuids"];
 function exportConfig(){
   const state={values:{}, include:{}};
-  for(const k of Object.keys(SCHEMA)){ if(S.include[k]){ state.values[k]=S.values[k]; state.include[k]=true; } }
+  const redacted=[];
+  for(const k of Object.keys(SCHEMA)){ if(S.include[k]){
+    if(SECRET_KEYS.includes(k)){ state.include[k]=true; if(S.values[k]) redacted.push(k); continue; }
+    state.values[k]=S.values[k]; state.include[k]=true; } }
   for(const f of CONFIG_FIELDS) state[f]=S[f];
-  return JSON.stringify({tool:"aap-intune-configurator", schemaVersion:CONFIG_SCHEMA_VERSION, aapVersion:"3.7.7", exported:new Date().toISOString(), state}, null, 2)+"\n";
+  return JSON.stringify({tool:"aap-intune-configurator", schemaVersion:CONFIG_SCHEMA_VERSION, aapVersion:"3.7.7", exported:new Date().toISOString(), redacted, state}, null, 2)+"\n";
 }
 function importConfig(obj){
   if(!obj || obj.tool!=="aap-intune-configurator" || !obj.state) throw new Error("This isn't a configurator config file.");
@@ -1262,6 +1363,8 @@ function importConfig(obj){
   const next=mergeState(picked); if(!next) throw new Error("The config file has no settings in it.");
   next.ltab=S.ltab; next.otab=S.otab; next.onlyOn=S.onlyOn;
   next.extraKeys=Object.fromEntries(unknown.map(k=>[k,obj.state.values[k]]));
+  // Keep any secrets already typed this visit; a config file never carries them.
+  for(const k of SECRET_KEYS) if(S.values[k]) next.values[k]=S.values[k];
   S=next; syncInstall(); renderGroups(); renderOut(); save();
   return unknown.length;
 }
@@ -1274,7 +1377,8 @@ $("#btnLoadCfg").onclick=()=>$("#cfgFile").click();
 $("#cfgFile").onchange=e=>{
   const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
   const r=new FileReader();
-  r.onload=()=>{ try{ const n=importConfig(JSON.parse(String(r.result))); toast(n?`Config loaded; ${n} unrecognised key${n===1?"":"s"} dropped`:"Config loaded"); }
+  r.onload=()=>{ try{ const n=importConfig(JSON.parse(String(r.result))); const obj=JSON.parse(String(r.result)); const red=(obj.redacted||[]).filter(k=>SECRET_KEYS.includes(k)&&!S.values[k]);
+                 toast((n?`Config loaded; ${n} unrecognised key${n===1?"":"s"} dropped`:"Config loaded")+(red.length?`. Re-enter: ${red.join(", ")}`:"")); }
                  catch(err){ toast(err instanceof SyntaxError?"That file isn't valid JSON.":err.message); } };
   r.onerror=()=>toast("Couldn't read that file.");
   r.readAsText(f);
