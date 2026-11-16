@@ -1,0 +1,1229 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>AAP Intune Configurator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: two-pane workbench. Left = configuration (Install / Settings / Extras), right = sticky generated output with tabs. Stacks below 1080px. */
+:root{
+  --bg:#f3f5f9; --panel:#ffffff; --sunk:#e9edf4; --line:#d5dbe6; --line-soft:#e4e8f0;
+  --fg:#18202e; --muted:#5b6578; --faint:#8a93a5;
+  --accent:#2a55c9; --accent-ink:#ffffff; --accent-soft:#e3eafc;
+  --ok:#1f7a4d; --ok-soft:#e1f3e9; --warn:#a35a00; --warn-soft:#fcefd9; --bad:#b3261e; --bad-soft:#fbe4e2;
+  --code-bg:#0f1624; --code-fg:#d7deeb; --code-key:#8fb4ff; --code-str:#a6dba0; --code-tag:#6c7a96; --code-com:#6f7d99;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e131c; --panel:#151c28; --sunk:#1b2433; --line:#2a3548; --line-soft:#212b3b;
+  --fg:#e6ebf3; --muted:#9aa5b9; --faint:#6e7a90;
+  --accent:#7d9fff; --accent-ink:#0b1020; --accent-soft:#1f2c4d;
+  --ok:#6fd39e; --ok-soft:#173327; --warn:#f2b45c; --warn-soft:#3a2a12; --bad:#ff8a80; --bad-soft:#3d1b19;
+  --code-bg:#0a0f18; --code-fg:#d7deeb; --code-key:#8fb4ff; --code-str:#a6dba0; --code-tag:#5d6b86; --code-com:#66748f;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e131c; --panel:#151c28; --sunk:#1b2433; --line:#2a3548; --line-soft:#212b3b;
+  --fg:#e6ebf3; --muted:#9aa5b9; --faint:#6e7a90;
+  --accent:#7d9fff; --accent-ink:#0b1020; --accent-soft:#1f2c4d;
+  --ok:#6fd39e; --ok-soft:#173327; --warn:#f2b45c; --warn-soft:#3a2a12; --bad:#ff8a80; --bad-soft:#3d1b19;
+  --code-bg:#0a0f18; --code-fg:#d7deeb; --code-key:#8fb4ff; --code-str:#a6dba0; --code-tag:#5d6b86; --code-com:#66748f;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5}
+.wrap{max-width:1500px;margin:0 auto;padding-inline:20px;padding-block:20px 48px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:18px}
+h1{font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:-.01em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0;max-width:70ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:11.5px;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);white-space:nowrap}
+.chip b{color:var(--fg);font-weight:500}
+a{color:var(--accent)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:1080px){.grid{grid-template-columns:minmax(0,1fr)}}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.out{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:1080px){.out{position:static}}
+.tabs{display:flex;gap:2px;padding:6px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin}
+.tab{appearance:none;border:0;background:transparent;color:var(--muted);font:500 13px/1 var(--f-body);padding:9px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;display:inline-flex;gap:6px;align-items:center}
+.tab:hover{background:var(--sunk);color:var(--fg)}
+.tab[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+.tab .n{font-family:var(--f-mono);font-size:11px;opacity:.75}
+.tab .dot{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.body{padding:18px}
+.lead{color:var(--muted);margin:0 0 14px;max-width:72ch}
+h2{font-family:var(--f-display);font-weight:600;font-size:17px;margin:0 0 4px}
+h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 10px;font-weight:600}
+h3:first-child{margin-top:0}
+/* form controls */
+label.f{display:grid;gap:4px;min-width:0}
+.f > span{font-weight:500;font-size:13px}
+input[type=text],input[type=number],input[type=time],input[type=url],select,textarea{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+textarea{font-family:var(--f-mono);font-size:12px;resize:vertical}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.help{font-size:12px;color:var(--muted)}
+.btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:500 13px/1 var(--f-body);padding:8px 12px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn.sm{padding:5px 9px;font-size:12px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--panel);color:var(--muted);font:500 13px/1 var(--f-body);padding:9px 12px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.card{border:1px solid var(--line-soft);background:var(--sunk);border-radius:7px;padding:12px 14px}
+/* settings list */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.toolbar input[type=text]{max-width:260px}
+.count{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+details.grp{border:1px solid var(--line-soft);border-radius:7px;margin-bottom:8px;background:var(--panel)}
+details.grp > summary{list-style:none;cursor:pointer;padding:10px 12px;display:flex;align-items:center;gap:10px;font-weight:600}
+details.grp > summary::-webkit-details-marker{display:none}
+details.grp > summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--faint);border-bottom:2px solid var(--faint);transform:rotate(-45deg);transition:transform .15s;flex:none}
+details.grp[open] > summary::before{transform:rotate(45deg)}
+details.grp > summary .gcount{margin-left:auto;font:500 11.5px var(--f-mono);color:var(--muted)}
+details.grp > summary .gcount.on{color:var(--accent)}
+.fields{border-top:1px solid var(--line-soft)}
+.fld{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,1.05fr);gap:6px 12px;padding:11px 12px;border-bottom:1px solid var(--line-soft);align-items:start}
+.fld:last-child{border-bottom:0}
+.fld.off .ctl{opacity:.55}
+.fld.off .t{color:var(--muted)}
+@media (max-width:620px){.fld{grid-template-columns:22px minmax(0,1fr)}.fld .ctl{grid-column:2}}
+.fld input[type=checkbox].inc{margin:3px 0 0;width:15px;height:15px;accent-color:var(--accent)}
+.fld .t{font-weight:500;font-size:13px}
+.fld .k{font:11.5px var(--f-mono);color:var(--faint);word-break:break-all}
+.fld .d{font-size:12px;color:var(--muted);margin-top:3px;max-width:62ch}
+.fld .d.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.ctl{min-width:0;display:grid;gap:6px}
+.sw{position:relative;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;color:var(--muted)}
+.sw input{position:absolute;opacity:0;width:1px;height:1px}
+.sw i{width:34px;height:20px;border-radius:999px;background:var(--line);position:relative;transition:background .15s;flex:none}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--panel);transition:transform .15s}
+.sw input:checked + i{background:var(--accent)}
+.sw input:checked + i::after{transform:translateX(14px)}
+.sw input:focus-visible + i{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;padding:5px;border:1px solid var(--line);border-radius:6px;background:var(--panel);min-height:36px}
+.chips .c{display:inline-flex;align-items:center;gap:4px;font:12px var(--f-mono);background:var(--sunk);border:1px solid var(--line-soft);border-radius:4px;padding:2px 4px 2px 7px}
+.chips .c.wild{border-color:var(--accent);color:var(--accent)}
+.chips .c button{appearance:none;border:0;background:transparent;color:var(--faint);cursor:pointer;font-size:14px;line-height:1;padding:0 3px}
+.chips .c button:hover{color:var(--bad)}
+.chips input{border:0;outline:0;flex:1;min-width:110px;padding:3px 4px;font:12px var(--f-mono);background:transparent;color:var(--fg)}
+.bh{display:grid;gap:5px}
+.bh .day{display:grid;grid-template-columns:58px auto minmax(0,1fr) auto minmax(0,1fr);gap:6px;align-items:center;font-size:12px}
+.bh .day input[type=time]{padding:4px 6px;font-size:12px}
+.bh .day.off input[type=time]{opacity:.4}
+/* output */
+.ohead{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:10px}
+.fname{font:500 13px var(--f-mono)}
+.ohead .btns{margin-left:auto}
+pre.code{margin:0;background:var(--code-bg);color:var(--code-fg);border-radius:7px;padding:14px 16px;font:12px/1.55 var(--f-mono);overflow:auto;max-height:62vh;tab-size:4;white-space:pre}
+@media (max-width:1080px){pre.code{max-height:480px}}
+pre.code .k{color:var(--code-key)} pre.code .s{color:var(--code-str)} pre.code .g{color:var(--code-tag)} pre.code .c{color:var(--code-com);font-style:italic}
+.kv{display:grid;grid-template-columns:minmax(120px,auto) minmax(0,1fr);border:1px solid var(--line-soft);border-radius:7px;overflow:hidden;margin:12px 0}
+.kv > div{padding:7px 10px;border-bottom:1px solid var(--line-soft);font-size:12.5px;min-width:0}
+.kv > div:nth-child(odd){color:var(--muted);background:var(--sunk)}
+.kv > div:nth-last-child(-n+2){border-bottom:0}
+.kv code,.inl{font:12px var(--f-mono);background:var(--sunk);padding:1px 5px;border-radius:4px;word-break:break-all}
+.kv > div:nth-child(even) code{background:transparent;padding:0}
+ol.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:10px}
+ol.steps li{counter-increment:s;display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start}
+ol.steps li::before{content:counter(s);width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font:600 12px/24px var(--f-mono);text-align:center}
+ol.steps li b{display:block}
+ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.issues{display:grid;gap:6px;margin-bottom:12px}
+.iss{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;font-size:12.5px;padding:7px 10px;border-radius:6px}
+.iss.warn{background:var(--warn-soft);color:var(--warn)}
+.iss.bad{background:var(--bad-soft);color:var(--bad)}
+.iss.ok{background:var(--ok-soft);color:var(--ok)}
+.iss .tag{font:600 10.5px/1.6 var(--f-mono);letter-spacing:.05em;text-transform:uppercase}
+.iss span{color:var(--fg)}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%) translateY(20px);background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:7px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.note{font-size:12px;color:var(--muted);margin-top:10px}
+.hidden-dl .dl{display:none}
+.modal{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);color:var(--fg);padding:0;max-width:min(680px,calc(100vw - 32px));width:100%}
+.modal::backdrop{background:rgb(10 14 22 / .45)}
+.modal .mb{padding:18px;display:grid;gap:10px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap" id="app">
+  <header class="top">
+    <div>
+      <h1>App Auto-Patch for Intune</h1>
+      <p class="sub">Build the managed preferences, install script and supporting profiles to deploy <a href="https://github.com/App-Auto-Patch/App-Auto-Patch" target="_blank" rel="noopener">App Auto-Patch</a> to Macs with Microsoft Intune.</p>
+    </div>
+    <div class="meta">
+      <span class="chip">AAP <b>3.7.7</b></span>
+      <span class="chip">domain <b>xyz.techitout.appAutoPatch</b></span>
+      <span class="chip">daemon <b>xyz.techitout.aap</b></span>
+      <button class="btn primary dl" id="dlAll">Download all files (.zip)</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: configure -->
+    <section class="pane" aria-label="Configure">
+      <div class="tabs" role="tablist" id="ltabs">
+        <button class="tab" role="tab" data-l="install" aria-selected="true"><span class="n">1</span>Install method</button>
+        <button class="tab" role="tab" data-l="settings" aria-selected="false"><span class="n">2</span>Settings</button>
+        <button class="tab" role="tab" data-l="extras" aria-selected="false"><span class="n">3</span>Profiles &amp; reporting</button>
+      </div>
+
+      <!-- Install -->
+      <div class="body" data-lp="install">
+        <h2>How AAP gets onto the Mac</h2>
+        <p class="lead">Intune can't run the AAP script directly because its macOS script agent drops the variables AAP needs to self-install. Pick a wrapper.</p>
+        <div class="seg" id="method" role="group" aria-label="Install method">
+          <button data-v="script" aria-pressed="true">Platform script (download + hash check)</button>
+          <button data-v="pkg" aria-pressed="false">macOS app (PKG)</button>
+        </div>
+
+        <div id="m-script" style="margin-top:18px">
+          <h3>Version to install</h3>
+          <div class="row">
+            <label class="f"><span>GitHub ref</span>
+              <select id="ref">
+                <option value="Version_3.7.7">Version_3.7.7 (latest tag)</option>
+                <option value="Version_3.7.6">Version_3.7.6</option>
+                <option value="Version_3.7.5">Version_3.7.5</option>
+                <option value="Version_3.7.4">Version_3.7.4</option>
+                <option value="Version_3.7.3">Version_3.7.3</option>
+                <option value="main">main (moves with every commit)</option>
+                <option value="custom">Custom tag or commit…</option>
+              </select>
+            </label>
+            <label class="f" id="refCustomWrap" hidden><span>Custom ref</span><input type="text" id="refCustom" placeholder="Version_3.8.0 or a commit SHA"></label>
+          </div>
+          <label class="f" style="margin-top:12px"><span>SHA-256 of App-Auto-Patch-via-Dialog.zsh</span>
+            <input type="text" id="hash" spellcheck="false" style="font-family:var(--f-mono)">
+          </label>
+          <p class="help" id="hashHelp"></p>
+          <div class="card" style="margin-top:6px">
+            <div class="help" style="margin-bottom:6px">Recompute the hash on any Mac after choosing a different ref:</div>
+            <div style="display:flex;gap:8px;align-items:center;min-width:0">
+              <code class="inl" id="hashCmd" style="flex:1;min-width:0;overflow-x:auto;white-space:nowrap;display:block;padding:6px 8px"></code>
+              <button class="btn sm" data-copy="hashCmd">Copy</button>
+            </div>
+          </div>
+
+          <h3>When the script runs again</h3>
+          <div class="seg" id="reinstall" role="group" aria-label="Reinstall behaviour">
+            <button data-v="missing" aria-pressed="true">Install only if missing</button>
+            <button data-v="older" aria-pressed="false">Upgrade if older</button>
+            <button data-v="always" aria-pressed="false">Always reinstall</button>
+          </div>
+          <p class="help" id="reinstallHelp" style="margin-top:8px"></p>
+
+          <h3>First-run flags</h3>
+          <div style="display:grid;gap:8px">
+            <label class="sw"><input type="checkbox" id="flagResetDefaults" checked><i></i><span><code class="inl">--reset-defaults</code> clear local preferences so managed values take effect cleanly</span></label>
+            <label class="sw"><input type="checkbox" id="flagResetLabels" checked><i></i><span><code class="inl">--reset-labels</code> rebuild the Installomator label cache</span></label>
+            <label class="sw"><input type="checkbox" id="flagVerbose"><i></i><span><code class="inl">--verbose-mode</code> write aap_verbose.log during rollout testing</span></label>
+          </div>
+        </div>
+
+        <div id="m-pkg" hidden style="margin-top:18px">
+          <p class="lead" style="margin-bottom:10px">Since 3.6.x each GitHub release ships a signed installer package with real version numbers, so Intune can replace an older upload with a newer one. Its postinstall copies AAP into place and loads the LaunchDaemon.</p>
+          <div class="kv">
+            <div>Download</div><div><a href="https://github.com/App-Auto-Patch/App-Auto-Patch/releases/latest" target="_blank" rel="noopener">Latest release</a> › the <code>.pkg</code> asset</div>
+            <div>Package ID</div><div><code>xyz.techitout.appAutoPatch.installer</code></div>
+            <div>Installs to</div><div><code>/Library/Management/AppAutoPatch</code></div>
+            <div>Intune app type</div><div>macOS app (PKG)</div>
+          </div>
+          <p class="help">The PKG path has no hash pinning or reinstall logic to configure. The Install tab on the right shows the Intune fields.</p>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="body" data-lp="settings" hidden>
+        <h2>Managed preferences</h2>
+        <p class="lead">Ticked keys go into the configuration profile. Changing a value ticks it for you. Anything left unticked uses AAP's built-in default.</p>
+        <div class="toolbar">
+          <label class="f" style="flex:1;min-width:180px"><span class="help">Start from a preset</span>
+            <select id="preset">
+              <option value="">Choose a preset…</option>
+              <option value="balanced">Balanced: interactive, Microsoft apps left to MAU</option>
+              <option value="monthly">Monthly patch window (2nd Tuesday)</option>
+              <option value="silent">Silent: labs and shared Macs</option>
+              <option value="discovery">Discovery only: report, user installs on demand</option>
+              <option value="intuneSample">Upstream Intune sample (corrected)</option>
+              <option value="none">Clear everything</option>
+            </select>
+          </label>
+          <label class="f" style="flex:1;min-width:160px"><span class="help">Filter</span><input type="text" id="filter" placeholder="Key or title"></label>
+          <div class="btns" style="align-self:end">
+            <button class="btn" id="btnImport">Import plist…</button>
+            <button class="btn" id="btnOnlyOn" aria-pressed="false">Show ticked only</button>
+          </div>
+        </div>
+        <div id="groups"></div>
+      </div>
+
+      <!-- Extras -->
+      <div class="body" data-lp="extras" hidden>
+        <h2>Supporting profiles</h2>
+        <p class="lead">Optional payloads bundled into the .mobileconfig on the right. The Intune preference file only ever carries AAP's own keys.</p>
+        <div class="row">
+          <label class="f"><span>Organization</span><input type="text" id="org" placeholder="Contoso IT"></label>
+          <label class="f"><span>Profile identifier prefix</span><input type="text" id="idPrefix" placeholder="com.contoso" spellcheck="false"></label>
+        </div>
+        <div style="display:grid;gap:12px;margin-top:16px">
+          <label class="sw"><input type="checkbox" id="xLogin" checked><i></i><span><b style="color:var(--fg)">Managed login item</b> for <code class="inl">xyz.techitout.aap</code>. Stops users switching off the LaunchDaemon in System Settings › Login Items, and suppresses the "Background item added" alert.</span></label>
+          <label class="sw"><input type="checkbox" id="xNotif" checked><i></i><span><b style="color:var(--fg)">swiftDialog notifications</b> for <code class="inl">au.csiro.dialog</code>. Allows the banner notifications AAP sends for silent updates and queued apps.</span></label>
+        </div>
+        <div class="row" style="margin-top:10px" id="notifOpts">
+          <label class="f"><span>Notification style</span><select id="notifStyle"><option value="1">Banners</option><option value="2">Alerts (persistent)</option></select></label>
+        </div>
+
+        <h3>Reporting</h3>
+        <p class="lead" style="margin-bottom:10px">Intune custom attributes run a script and show one value per Mac under Devices › macOS › Custom attributes.</p>
+        <label class="f"><span>Value to report</span>
+          <select id="ca">
+            <option value="AAPVersion">AAP version installed</option>
+            <option value="AAPPatchingCompletionStatus">Patching complete this cycle (true / false)</option>
+            <option value="AAPPatchingCompleteDate">Date patching last completed</option>
+            <option value="NextAutoLaunch">Next scheduled run</option>
+            <option value="AAPStatus">AAP status message</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <!-- RIGHT: output -->
+    <section class="pane out" aria-label="Generated output">
+      <div class="tabs" role="tablist" id="otabs">
+        <button class="tab" role="tab" data-o="pref" aria-selected="true">Preference file</button>
+        <button class="tab" role="tab" data-o="mc" aria-selected="false">.mobileconfig</button>
+        <button class="tab" role="tab" data-o="inst" aria-selected="false">Install</button>
+        <button class="tab" role="tab" data-o="ca" aria-selected="false">Custom attribute</button>
+        <button class="tab" role="tab" data-o="un" aria-selected="false">Uninstall</button>
+        <button class="tab" role="tab" data-o="plan" aria-selected="false" id="planTab">Rollout plan</button>
+      </div>
+      <div class="body" id="obody"></div>
+    </section>
+  </div>
+</div>
+
+<dialog class="modal" id="importDlg">
+  <form method="dialog" class="mb" id="importForm">
+    <h2>Import existing preferences</h2>
+    <p class="help" style="margin:0">Paste a .plist, a .mobileconfig, or the keys-only XML used by Intune's preference file template. Recognised keys replace current values; everything else is listed so you can check it.</p>
+    <textarea id="importText" rows="12" placeholder="&lt;key&gt;InteractiveMode&lt;/key&gt;&#10;&lt;integer&gt;1&lt;/integer&gt;"></textarea>
+    <p class="help" id="importMsg" style="margin:0"></p>
+    <div class="btns" style="justify-content:flex-end">
+      <button class="btn" value="cancel" id="importCancel">Cancel</button>
+      <button class="btn primary" id="importGo" value="default">Import</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const SCHEMA = {"DaysUntilReset": {"t": "string", "title": "Days Until Reset", "d": "The number of days after the patching cadence start date (Zero Date) that the patching complete status will reset from TRUE to FALSE", "e": null, "def": 7}, "PatchWeekStartDay": {"t": "string", "title": "Patch Week Start Day", "d": "The day of the week to force the patching cadence start date (Zero Date) to go back to in order to have the patch cadence start the same day of the week for all users", "e": ["1", "2", "3", "4", "5", "6", "7"], "def": null}, "DeadlineCountFocus": {"t": "string", "title": "Focus Count Deadline", "d": "The maximum number of automatic deferrals allowed if the system is in user-enabled Focus/Do Not Disturb or when a process has requested that the display not go to sleep", "e": null, "def": 3}, "DeadlineCountHard": {"t": "string", "title": "Hard Count Deadline", "d": "The maximum number of user selected deferrals allowed before App Auto-Patch will no longer allow deferrals and will automatically patch when the timer expires", "e": null, "def": 3}, "DeadlineDaysFocus": {"t": "string", "title": "Focus Days Deadline", "d": "The maximum number of days that automatic deferrals are allowed if the system is in user-enabled Focus/Do Not Disturb or when a process has requested that the display not go to sleep", "e": null, "def": null}, "DeadlineDaysHard": {"t": "string", "title": "Hard Days Deadline", "d": "The maximum number of days deferrals allowed before App Auto-Patch will no longer allow deferrals and will automatically patch when the timer expires", "e": null, "def": null}, "DiscoveryFrequency": {"t": "integer", "title": "Discovery Frequency", "d": "The number of hours since the last successful App Discovery before App Auto-Patch will run discovery again. If the workflow resets and re-runs (e.g. after a deferral) within this window, discovery is skipped and the previously discovered queue is reused. A value of 0 forces discovery to run on every workflow execution", "e": null, "def": 24}, "DeferralTimerDefault": {"t": "string", "title": "Deferral Timer Default", "d": "The number of minutes to defer until the next update workflow attempt if a user choses not install updates", "e": null, "def": 1440}, "DeferralTimerError": {"t": "string", "title": "Deferral Timer Error", "d": "The number of minutes to defer if AAP detects an error in the workflow", "e": null, "def": 60}, "DeferralTimerFocus": {"t": "string", "title": "Deferral Timer Focus", "d": "The number of minutes to defer the update restart dialog automatically if a process has prevented display sleep (for example, during an active meeting) or the user has Focus or Do Not Disturb enabled", "e": null, "def": 60}, "DeferralTimerMenu": {"t": "string", "title": "Deferral Timer Menu", "d": "Display a deferral time pop-up menu in the non-deadline install dialog that allows the user to override the Deferral Timer Default timer", "e": null, "def": "30,60,90,480,720,1440,2880"}, "DeferralTimerWorkflowRelaunch": {"t": "string", "title": "Deferral Timer Workflow Relaunch", "d": "Amount of time in minutes until AAP is relaunched after a workflow. This timer results in AAP acting as a permanent agent that checks for app updates on a regular basis", "e": null, "def": 1440}, "MonthlyPatchingCadenceEnabled": {"t": "boolean", "title": "Monthly Patching Cadence Enabled", "d": "Determines if Monthly Patching Cadence is enabled. If True, must also configure Ordinal Value, Weekday Index and Start Time", "e": null, "def": null}, "MonthlyPatchingCadenceOrdinalValue": {"t": "string", "title": "Monthly Patching Cadence Ordinal Value", "d": "Week of the month you want AAP to be scheduled", "e": ["first", "second", "third", "fourth", "fifth", "final"], "def": null}, "MonthlyPatchingCadenceWeekdayIndex": {"t": "string", "title": "Monthly Patching Cadence Weekday Index", "d": "Day of the week you want AAP to be scheduled", "e": ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"], "def": null}, "MonthlyPatchingCadenceStartTime": {"t": "string", "title": "Monthly Patching Cadence Start Time", "d": "Local time you want AAP to be scheduled", "e": null, "def": null}, "ZoomCallActiveCheck": {"t": "boolean", "title": "Zoom Call Active Check", "d": "When enabled, AAP will automatically skip updating Zoom if a call is active", "e": null, "def": true}, "DialogOnTop": {"t": "boolean", "title": "Dialog On Top", "d": "Forces the AAP dialogs to stay on top of all other windows. Set as a boolean with App Auto-Patch 3.7.7 or later; earlier versions only accept the string TRUE.", "e": null, "def": null}, "ShowDockIcon": {"t": "boolean", "title": "Show Dock Icon", "d": "When true, workflow swiftDialog windows show the App Auto-Patch logo in the macOS Dock (requires swiftDialog 3.0+). Deferral dialogs badge the pending update count; the installation dialog counts the badge down as updates finish. Default true.", "e": null, "def": true}, "ShowNotificationsAll": {"t": "boolean", "title": "Show Notifications (All)", "d": "Master switch for banner-style swiftDialog notifications. When true (default), every notification type is shown and individual ShowNotifications* keys are ignored. When false, enable specific types with ShowNotificationsSilentUpdated, ShowNotificationsAppsQueued, and/or ShowNotificationsSilentAndQueued. Does not itself enable discovery during Business Hours.", "e": null, "def": true}, "ShowNotificationsSilentUpdated": {"t": "boolean", "title": "Show Notification: Silent Updated", "d": "When ShowNotificationsAll is false, enable the banner that reports successful silent closed-app updates (e.g. \u201cupdated {count} application(s) in the background\u201d). Ignored when ShowNotificationsAll is true.", "e": null, "def": false}, "ShowNotificationsAppsQueued": {"t": "boolean", "title": "Show Notification: Apps Queued", "d": "When ShowNotificationsAll is false, enable the banner that reports pending updates with Install Now / Dismiss (including after BusinessHoursAllowDiscovery). Ignored when ShowNotificationsAll is true.", "e": null, "def": false}, "ShowNotificationsSilentAndQueued": {"t": "boolean", "title": "Show Notification: Silent And Queued", "d": "When ShowNotificationsAll is false, enable the combined banner after Business Hours Silent During (\u201c{count} updated\u2026 {remaining} remain queued\u201d). Ignored when ShowNotificationsAll is true.", "e": null, "def": false}, "DialogTimeoutDeferral": {"t": "string", "title": "Deferral Dialog Timeout", "d": "Time given to the user to respond to deferral prompt if enabled", "e": null, "def": 300}, "DialogTimeoutDeferralAction": {"t": "string", "title": "Deferral Dialog Timeout Action", "d": "What happens when the deferral timer expires", "e": ["Defer", "Continue"], "def": null}, "DialogTimeoutConfirmInstall": {"t": "integer", "title": "Confirm Install Dialog Timeout", "d": "The number of seconds given to the user to respond to the \"Are you sure?\" confirmation dialog shown after clicking Install Now on the deferral dialog. If the timer expires with no response, App Auto-Patch defaults to continuing with the install", "e": null, "def": 15}, "DialogQuitHandlingDiscoveryStaging": {"t": "string", "title": "Discovery/Staging Dialog Quit Handling", "d": "What happens if the user quits the discovery or staging window (Dock Quit / menu Quit / \u2318Q). PROMPT (default) asks whether to Keep Running in the background or Stop App Auto-Patch until the next scheduled run. CONTINUE keeps the workflow running with no prompt (previous implicit behavior). STOP ends the current run cleanly and preserves NextAutoLaunch. Stop is ignored when a hard deadline is already due or Install Now is running \u2014 the workflow continues instead.", "e": ["PROMPT", "CONTINUE", "STOP"], "def": "PROMPT"}, "UnattendedExit": {"t": "boolean", "title": "Unattended Exit", "d": "Deterines if the Dialog should automatically close after completion if there is no response from the end-user", "e": null, "def": null}, "UnattendedExitSeconds": {"t": "integer", "title": "Unattended Exit Seconds", "d": "The number of seconds the AAP dialog will automatically close if UnattendedExit is set to TRUE", "e": null, "def": 60}, "UseOverlayIcon": {"t": "boolean", "title": "Use Overlay Icon", "d": "Toggles swiftDialog to use an overlay icon. Set as a boolean with App Auto-Patch 3.7.7 or later; earlier versions only accept the string TRUE.", "e": null, "def": null}, "DialogIcon": {"t": "string", "title": "Dialog Icon", "d": "Allows you to set a custom icon for the dialog vs. the default Laptop/Desktop symbol", "e": null, "def": null}, "BannerImage": {"t": "string", "title": "Banner Image", "d": "Displays a swiftDialog banner image in place of the standard title text. Accepts a filepath, a URL, a solid colour (colour=#hex), or a gradient (gradient=colour,colour). When set, this replaces the standard title text banner and hides the standard dialog icon area, matching swiftDialog's own banner behavior. Not applied to the App Discovery or \"All Apps Up To Date\" mini dialogs, which are too small to display a banner", "e": null, "def": null}, "BannerTitle": {"t": "string", "title": "Banner Title", "d": "The text displayed within the banner image set by Banner Image. Falls back to App Title if left blank. Has no effect unless Banner Image is also configured", "e": null, "def": null}, "BannerHeight": {"t": "integer", "title": "Banner Height", "d": "Overrides the default height, in points, of the banner image set by Banner Image. Invalid (non-integer) values are ignored. Has no effect unless Banner Image is also configured", "e": null, "def": null}, "IgnoredLabels": {"t": "string", "title": "Ignored Labels", "d": "A space-separated list of Installomator labels to ignore for the AAP workflow. Supports wildcards, for example \"microsoft*\". A single \"*\" ignores every Installomator label except those listed in Required Labels and Optional Labels.", "e": null, "def": null}, "ExcludedBackgroundLabels": {"t": "string", "title": "Excluded Background Labels", "d": "A space-separated list of Installomator labels to discover and report, but not update during fully-silent runs (InteractiveMode 0 / --workflow-install-now-silent) or Background Patch Closed Apps. Interactive Install Now and hard-deadline installs still update them. Supports wildcards. Unlike Ignored Labels, these apps stay visible in discovery, logs, and inventory.", "e": null, "def": null}, "RequiredLabels": {"t": "string", "title": "Required Labels", "d": "a space-separated list of Installomator labels that are required, regardless if the app is installed or or the latest version. Supports wildcards.", "e": null, "def": null}, "OptionalLabels": {"t": "string", "title": "Optional Labels", "d": "A space-separated list of optional Installomator labels. Labels in this category are only included if the app exists on the end-users device and the app is not up to date. **Does not** support wildcards!", "e": null, "def": null}, "AppTitle": {"t": "string", "title": "App Title", "d": "Allows you to customize the name of App Auto-Patch to something else", "e": null, "def": "App Auto-Patch"}, "ConvertAppsInHomeFolder": {"t": "boolean", "title": "Convert Apps In Home Folder", "d": "This will convert any apps found in the users home folder to the /Applications folder. Set as a boolean with App Auto-Patch 3.7.7 or later; earlier versions only accept the string TRUE.", "e": null, "def": true}, "IgnoreAppsInHomeFolder": {"t": "boolean", "title": "Ignore Apps In Home Folder", "d": "Ignore apps found in '/Users/'. If an update is found in '/Users/' and variable is set to false, the app will be updated into the application's default path. Set as a boolean with App Auto-Patch 3.7.7 or later; earlier versions only accept the string TRUE.", "e": null, "def": false}, "SkipPreUpdateVerification": {"t": "boolean", "title": "Skip Pre-Update Verification", "d": "When true, discovery skips the local Gatekeeper (spctl) / Team ID pre-update check for already-installed apps. Use this when spctl assessment intermittently fails for a valid app and would otherwise exclude it from discovery/updates. Installomator still validates the downloaded package after download. Default false.", "e": null, "def": false}, "InstallomatorOptions": {"t": "string", "title": "Installomator Options", "d": "A space-separated list of options to override default Installomator options (i.e., BLOCKING_PROCESS_ACTION=prompt_user NOTIFY=silent LOGO=jamf)", "e": null, "def": "BLOCKING_PROCESS_ACTION=prompt_user NOTIFY=silent LOGO=jamf"}, "InstallomatorUpdateDisable": {"t": "boolean", "title": "Installomator Update Disable", "d": "This will prevent Installomator from automatically updating. If Installomator does not exist in the working folder, it will still download from GitHub to prevent script failure", "e": null, "def": false}, "GitHubAPIAuthEnabled": {"t": "boolean", "title": "GitHub API Auth Enabled", "d": "When TRUE, App Auto-Patch authenticates GitHub REST API requests (api.github.com) with the personal access token in GitHubAPIToken, raising the rate limit from 60 to 5,000 requests per hour. Managed preferences only - the token is never written to the local preference file and is never logged. If this key is TRUE, GitHubAPIToken is required or startup validation fails.", "e": null, "def": false}, "GitHubAPIToken": {"t": "string", "title": "GitHub API Token", "d": "GitHub personal access token (classic or fine-grained) used when GitHubAPIAuthEnabled is TRUE. Sent as Authorization: Bearer on api.github.com requests for Installomator and swiftDialog lookups. Prefer a fine-grained token with Contents: Read on the repositories AAP queries. Managed preferences only - never stored in the local preference file or written to logs.", "e": null, "def": null}, "PrePatchScript": {"t": "string", "title": "Pre Patch Script", "d": "Absolute path to a root-owned executable script run once before Installomator installations in a patch run. Must live under /Library/Management/AppAutoPatch/Hooks/, must not be a symlink, and must not be group/world-writable. Managed preferences only - never accepted from CLI or the local preference file.", "e": null, "def": null}, "PostPatchScript": {"t": "string", "title": "Post Patch Script", "d": "Absolute path to a root-owned executable script run once after Installomator installations complete (for example jamf recon). Same security requirements as PrePatchScript. Managed preferences only.", "e": null, "def": null}, "PrePatchScriptFailAction": {"t": "string", "title": "Pre Patch Script Fail Action", "d": "What to do if PrePatchScript is missing/invalid or exits non-zero. ABORT stops the install run; CONTINUE logs the failure and proceeds with patching.", "e": ["ABORT", "CONTINUE"], "def": "ABORT"}, "PostPatchScriptFailAction": {"t": "string", "title": "Post Patch Script Fail Action", "d": "What to do if PostPatchScript is missing/invalid or exits non-zero. ABORT exits AAP with an error after installs; CONTINUE (default) logs the failure and proceeds with webhook/relaunch.", "e": ["ABORT", "CONTINUE"], "def": "CONTINUE"}, "PatchScriptTimeoutSeconds": {"t": "integer", "title": "Patch Script Timeout Seconds", "d": "Maximum seconds allowed for a PrePatchScript or PostPatchScript run before AAP terminates it (treated as failure).", "e": null, "def": 300}, "StaleProcessTimeoutSeconds": {"t": "integer", "title": "Stale Process Timeout Seconds", "d": "Seconds of missing heartbeat after which a leftover App Auto-Patch process is treated as hung and recovered (graceful TERM, then KILL if needed). The PID file is also validated so a recycled PID is not mistaken for a live AAP run. Default 3600 (1 hour). 0 disables timeout-based stale-process killing (dead/reused PID cleanup still runs). Any other value below 300 is raised to 300.", "e": null, "def": 3600}, "InstallomatorVersion": {"t": "string", "title": "Installomator Version", "d": "Determines if the AAP script should use the Main (beta) or Release version of Installomator. The version from the Main branch typically includes more recent updates from PR's to fix issues or add new labels.", "e": ["Main", "Release", "Custom"], "def": "Main"}, "InstallomatorVersionCustomRepoPath": {"t": "string", "title": "Installomator Version Custom Repo Path", "d": "If InstallomatorVersion is set to Custom, enter the Github Site and Repository name in the following format: site_name/repo_name . For example, if the custom fork is located at https://github.com/TechTrekkie/Installomator, you would set this key to techtrekkie/installomator", "e": null, "def": "Main"}, "InstallomatorVersionCustomBranchName": {"t": "string", "title": "Installomator Version Custom Branch Name", "d": "The name of the branch you want to use in your custom repo, typically main.", "e": null, "def": "Main"}, "InteractiveMode": {"t": "integer", "title": "Interactive Mode", "d": "0 (Completely Silent) | 1 (Silent Discovery, Interactive Patching) | 2 (Full Interactive) (default)", "e": [0, 1, 2], "def": "2"}, "RemoveInstallomatorPath": {"t": "boolean", "title": "Remove Installomator Path", "d": "Remove Installomator after App Auto-Patch is completed. Set as a boolean with App Auto-Patch 3.7.7 or later; earlier versions only accept the string TRUE.", "e": null, "def": false}, "SupportTeamName": {"t": "string", "title": "Support Team Name", "d": "For the Support Team details that display in the Help Message", "e": null, "def": "Company IT Support"}, "SupportTeamEmail": {"t": "string", "title": "Support Team Email", "d": "For the Support Team details that display in the Help Message", "e": null, "def": "support@company.com"}, "SupportTeamPhone": {"t": "string", "title": "Support Team Phone", "d": "For the Support Team details that display in the Help Message", "e": null, "def": "(555) 867-5309"}, "SupportTeamWebsite": {"t": "string", "title": "Support Team Website", "d": "For the Support Team details that display in the Help Message", "e": null, "def": "support.company.com"}, "WebhookFeature": {"t": "string", "title": "Webhook Feature", "d": "Determines if Webhooks are sent when patching is completed", "e": ["FALSE", "ALL", "FAILURES"], "def": "FAILURES"}, "WebhookURLSlack": {"t": "string", "title": "Slack Webhook URL", "d": "The Slack Webhook URL to use if WebhookFeature is set to TRUE", "e": null, "def": null}, "WebhookURLTeams": {"t": "string", "title": "Teams Webhook URL", "d": "The Teams Webhook URL to use if WebhookFeature is set to TRUE", "e": null, "def": null}, "WebhookURLGoogleChat": {"t": "string", "title": "Google Chat Webhook URL", "d": "The Google Chat incoming webhook URL to use if WebhookFeature is set to ALL or FAILURES. The card includes the same status, serial, user, labels, errors, and MDM device link as the Slack and Teams webhooks.", "e": null, "def": null}, "MosyleConsoleURL": {"t": "string", "title": "Mosyle Console URL", "d": "Override the Mosyle admin console host used in Slack/Teams View in Mosyle device links. The enrollment ServerURL (for example https://biz-1234.mosyle.com) is the MDM check-in endpoint, not the console. Leave unset to map Business enrollments (biz-* / *business.mosyle*) to https://mybusiness.mosyle.com and other Mosyle enrollments to https://my.mosyle.com (Manager/Education).", "e": null, "def": null}, "WorkflowDisableAppDiscovery": {"t": "boolean", "title": "Disable App Discovery Workflow", "d": "Disables the discovery of applications that require patching. If a list of labels from a previous discovery exists, AAP will use that list for the workflow", "e": null, "def": false}, "WorkflowBackgroundPatchClosedApps": {"t": "boolean", "title": "Background Patch Closed Apps", "d": "When Interactive Mode is 1 or 2, silently pre-patches apps that are not currently open immediately after discovery and before any deferral/deadline dialog is shown. Apps that are open (blocking process detected) remain in the queue and are presented to the user as normal", "e": null, "def": true}, "WorkflowStageUpdates": {"t": "boolean", "title": "Stage Updates", "d": "Pre-downloads (stages) installers for queued updates to a local staging folder immediately after discovery, before the deferral/deadline dialog is shown to the user. This makes the later install step nearly instantaneous for staged updates. Works alongside Background Patch Closed Apps without downloading the same update twice", "e": null, "def": false}, "IgnoreDNDApps": {"t": "string", "title": "Ignore Do Not Disturb Apps", "d": "A comma-separated list of app/process names to exclude from display-sleep assertion (Focus/Do Not Disturb) detection. Useful for background utilities that permanently hold display assertions (e.g. Logi Options+, Amphetamine) that should not block interactive patching. Process names must match exactly as pmset reports them, including spaces", "e": null, "def": null}, "WorkflowScheduledDiscovery": {"t": "boolean", "title": "Scheduled Discovery Only", "d": "When WorkflowDisableRelaunch is also enabled, keep periodic headless discovery runs active using DiscoveryFrequency. These runs refresh the pending-app report, optionally stage updates, and can notify users. They do not show deferral or deadline dialogs. Closed apps are patched only when WorkflowDiscoveryOnlyBackgroundPatchClosedApps is true. Users initiate remaining installations from the pending-apps dialog, Support App, notification action, or another explicit Install Now trigger", "e": null, "def": false}, "WorkflowDiscoveryOnlyBackgroundPatchClosedApps": {"t": "boolean", "title": "Discovery Only Background Patch Closed Apps", "d": "When true, a discovery-only run (scheduled discovery or --workflow-discovery-only) silently installs updates for apps that are not open. Open or blocked apps, and labels in ExcludedBackgroundLabels, stay in the pending-apps report. There is still no deferral dialog. This does not change WorkflowBackgroundPatchClosedApps, which applies only to the normal interactive workflow. When false (default), discovery-only refreshes the report and does not install anything", "e": null, "def": false}, "WorkflowDisableRelaunch": {"t": "boolean", "title": "Disable Relaunch Workflow", "d": "Disable the automatic relaunch of AAP after the current workflow successfully completes", "e": null, "def": false}, "BusinessHours": {"t": "string", "title": "Business Hours", "d": "Weekday time windows when interactive App Auto-Patch must NOT run (blocked / do-not-disturb hours). Format: DAY:hh:mm-hh:mm, comma-separated, no spaces (MON-SUN, 24-hour). Multiple windows per day are allowed \u2014 for example MON:09:00-11:59,MON:13:00-17:00 blocks morning and afternoon but leaves lunch clear. Same-day ranges only. Empty/unset = always allowed. During a window, AAP reschedules NextAutoLaunch to the next clear time and exits unless BusinessHoursSilentDuring or BusinessHoursAllowDiscovery is true. Intentionally bypassed by --workflow-install-now / --workflow-install-now-silent / --preview-deferral-dialog / --pending-apps-dialog and headless discovery-only workflows. Overdue hard deadlines bypass BusinessHours by default unless BusinessHoursRespectHardDeadline is true.", "e": null, "def": null}, "BusinessHoursRespectHardDeadline": {"t": "boolean", "title": "Business Hours Respect Hard Deadline", "d": "When true, even an overdue hard deadline (days or count) waits until BusinessHours clear. When false (default), an overdue hard deadline bypasses BusinessHours so mandatory installs are not delayed by days.", "e": null, "def": false}, "BusinessHoursSilentDuring": {"t": "boolean", "title": "Business Hours Silent During", "d": "When true and during BusinessHours, AAP still runs discovery and silently patches closed apps only \u2014 no dialogs even if InteractiveMode is 1 or 2. Open or blocked apps remain queued and are deferred until BusinessHours clear. When false (default), during BusinessHours AAP only reschedules NextAutoLaunch and exits \u2014 unless BusinessHoursAllowDiscovery is true.", "e": null, "def": false}, "BusinessHoursAllowDiscovery": {"t": "boolean", "title": "Business Hours Allow Discovery", "d": "When true and during BusinessHours without BusinessHoursSilentDuring, AAP runs discovery then defers until the window clears (no interactive dialogs or silent patching). Notification prefs independently control whether pending apps get a banner with Install Now. When false (default), AAP exits immediately during BusinessHours without discovery \u2014 matching historical behavior.", "e": null, "def": false}, "WorkflowInstallNowPatchingStatusAction": {"t": "string", "title": "Workflow Install Now Patching Status Action", "d": "Determines if the Patching Completion Status is set to true when using the --workflow-install-now trigger", "e": ["NEVER", "ALWAYS", "SUCCESS"], "def": "SUCCESS"}, "SelfUpdateEnabled": {"t": "boolean", "title": "Self Update Enabled", "d": "Determines if the Self Update feature is enabled. this will automatically update App Auto-Patch if a new version is posted on github", "e": null, "def": true}, "SelfUpdateFrequency": {"t": "string", "title": "Self Update Frequency", "d": "The frequency to check for updates to the App Auto-Patch script", "e": ["daily", "weekly", "monthly"], "def": "daily"}, "VersionComparisonMethod": {"t": "string", "title": "Version Comparison Method", "d": "Determines the version comparison method used when checking for updates", "e": ["IS_AT_LEAST", "EQUAL_TO"], "def": null}, "VersionComparisonInstallomatorFallback": {"t": "boolean", "title": "Version Comparison Installomator Fallback", "d": "When enabled, if version comparison fails, AAP will fall back to using Installomator for version checking", "e": null, "def": null}, "VerboseMode": {"t": "boolean", "title": "Verbose Mode", "d": "When enabled, App Auto-Patch writes detailed troubleshooting output to /Library/Management/AppAutoPatch/logs/aap_verbose.log. Each run replaces that log, and the previous run is kept in logs-verbose-archive (the 10 newest files). Leave this off unless you are troubleshooting.", "e": null, "def": false}};
+
+/* ---------- static data ---------- */
+const HASHES = {
+  "Version_3.7.7":"4d0d316d1e6d5c25c0664bcd63f60c8f18ef7f914ee6c96452642dba2962c1e7",
+  "Version_3.7.6":"542679a4b09d1f3a9a16f9a26d674e8f6804cd3bc0b3f6c497dd2530c1e56339",
+  "Version_3.7.5":"f1cbc3748e636445c00970d2e9b0b163251bcddfed9131916075f4d622ed1863",
+  "Version_3.7.4":"d2138e25ed83a35dbc0779cfa12b65576b4a5ef4c0e9b337ed628ffbdbb0ba08",
+  "Version_3.7.3":"cfd75ba27c6a16196e72c9d203bfad1d49549887ea6ac754f84da8af1a56b035",
+  "main":"4d0d316d1e6d5c25c0664bcd63f60c8f18ef7f914ee6c96452642dba2962c1e7"
+};
+const HASH_DATE = "16 Nov 2026";
+
+if(!SCHEMA.VerboseMode) SCHEMA.VerboseMode = {t:"boolean",title:"Verbose Mode",d:"Writes a detailed aap_verbose.log for the current run; the previous run is archived to logs-verbose-archive (10 newest kept). Useful while piloting, noisy in production.",e:null,def:false};
+
+const GROUPS = [
+  {id:"mode",title:"Workflow",keys:["InteractiveMode","WorkflowBackgroundPatchClosedApps","WorkflowStageUpdates","WorkflowDisableAppDiscovery","DiscoveryFrequency","WorkflowDisableRelaunch","WorkflowScheduledDiscovery","WorkflowDiscoveryOnlyBackgroundPatchClosedApps","WorkflowInstallNowPatchingStatusAction","ConvertAppsInHomeFolder","IgnoreAppsInHomeFolder","SkipPreUpdateVerification","ZoomCallActiveCheck","IgnoreDNDApps"]},
+  {id:"labels",title:"App labels",keys:["IgnoredLabels","RequiredLabels","OptionalLabels","ExcludedBackgroundLabels"]},
+  {id:"deferrals",title:"Deferrals and deadlines",keys:["DeferralTimerDefault","DeferralTimerMenu","DeferralTimerFocus","DeferralTimerError","DeferralTimerWorkflowRelaunch","DeadlineCountHard","DeadlineDaysHard","DeadlineCountFocus","DeadlineDaysFocus","DialogTimeoutDeferral","DialogTimeoutDeferralAction","DialogTimeoutConfirmInstall"]},
+  {id:"schedule",title:"Patch cadence and business hours",keys:["DaysUntilReset","PatchWeekStartDay","MonthlyPatchingCadenceEnabled","MonthlyPatchingCadenceOrdinalValue","MonthlyPatchingCadenceWeekdayIndex","MonthlyPatchingCadenceStartTime","BusinessHours","BusinessHoursRespectHardDeadline","BusinessHoursSilentDuring","BusinessHoursAllowDiscovery"]},
+  {id:"dialog",title:"Dialogs and branding",keys:["AppTitle","DialogIcon","UseOverlayIcon","BannerImage","BannerTitle","BannerHeight","DialogOnTop","ShowDockIcon","UnattendedExit","UnattendedExitSeconds","DialogQuitHandlingDiscoveryStaging"]},
+  {id:"notify",title:"Notifications",keys:["ShowNotificationsAll","ShowNotificationsSilentUpdated","ShowNotificationsAppsQueued","ShowNotificationsSilentAndQueued"]},
+  {id:"support",title:"Support contact",keys:["SupportTeamName","SupportTeamEmail","SupportTeamPhone","SupportTeamWebsite"]},
+  {id:"installomator",title:"Installomator",keys:["InstallomatorOptions","InstallomatorVersion","InstallomatorVersionCustomRepoPath","InstallomatorVersionCustomBranchName","InstallomatorUpdateDisable","RemoveInstallomatorPath","VersionComparisonMethod","VersionComparisonInstallomatorFallback","GitHubAPIAuthEnabled","GitHubAPIToken"]},
+  {id:"webhooks",title:"Webhooks",keys:["WebhookFeature","WebhookURLTeams","WebhookURLSlack","WebhookURLGoogleChat"]},
+  {id:"hooks",title:"Pre- and post-patch scripts",keys:["PrePatchScript","PrePatchScriptFailAction","PostPatchScript","PostPatchScriptFailAction","PatchScriptTimeoutSeconds"]},
+  {id:"maint",title:"Self-update and maintenance",keys:["SelfUpdateEnabled","SelfUpdateFrequency","StaleProcessTimeoutSeconds","VerboseMode"]}
+];
+const ORDER = GROUPS.flatMap(g=>g.keys);
+const KNOWN = new Set(Object.keys(SCHEMA));
+KNOWN.add("MosyleConsoleURL");
+
+const LABEL_KEYS = new Set(["IgnoredLabels","RequiredLabels","OptionalLabels","ExcludedBackgroundLabels"]);
+const MINUTES_KEYS = new Set(["DeferralTimerMenu"]);
+const ENUM_LABELS = {
+  InteractiveMode:{0:"0 · Completely silent",1:"1 · Silent discovery, interactive patching",2:"2 · Fully interactive"},
+  PatchWeekStartDay:{1:"1 · Monday",2:"2 · Tuesday",3:"3 · Wednesday",4:"4 · Thursday",5:"5 · Friday",6:"6 · Saturday",7:"7 · Sunday"},
+  WebhookFeature:{"FALSE":"Off","ALL":"Every run","FAILURES":"Failures only"}
+};
+const DEFAULT_OVERRIDE = {
+  DialogOnTop:"TRUE",UnattendedExit:"FALSE",UseOverlayIcon:"TRUE",DialogTimeoutDeferralAction:"Defer",
+  VersionComparisonMethod:"IS_AT_LEAST",VersionComparisonInstallomatorFallback:true,MonthlyPatchingCadenceEnabled:false,
+  MonthlyPatchingCadenceOrdinalValue:"second",MonthlyPatchingCadenceWeekdayIndex:"tuesday",MonthlyPatchingCadenceStartTime:"10:00:00",
+  PatchWeekStartDay:"1",InstallomatorVersionCustomRepoPath:"Installomator/Installomator",InstallomatorVersionCustomBranchName:"main",
+  DeadlineDaysFocus:"3",DeadlineDaysHard:"5",InteractiveMode:2,ZoomCallActiveCheck:true,SelfUpdateEnabled:true,
+  WorkflowBackgroundPatchClosedApps:true,InstallomatorOptions:"BLOCKING_PROCESS_ACTION=prompt_user NOTIFY=silent LOGO=microsoft",
+  SupportTeamName:"",SupportTeamEmail:"",SupportTeamPhone:"",SupportTeamWebsite:""
+};
+
+// 3.7.7 (#345) turned these TRUE/FALSE strings into real booleans. AAP 3.7.7+ reads either form;
+// before 3.7.7 the first five only understood the strings, so pinned older refs still get strings.
+const LEGACY_STRING_BOOLS = new Set(["ConvertAppsInHomeFolder","IgnoreAppsInHomeFolder","DialogOnTop","UseOverlayIcon","RemoveInstallomatorPath"]);
+function norm(k, v){
+  const s=SCHEMA[k]; if(!s) return v;
+  if(s.t==="boolean" && typeof v!=="boolean") return v===1 || /^(true|1|yes)$/i.test(String(v));
+  return v;
+}
+function legacyBools(){
+  if(S.method!=="script") return false;
+  const m=/^Version_(\d+)\.(\d+)\.(\d+)$/.exec(refValue()); if(!m) return false;
+  const [a,b,c]=m.slice(1).map(Number); return a<3||(a===3&&(b<7||(b===7&&c<7)));
+}
+function defaultFor(k){ return norm(k, defaultFor0(k)); }
+function defaultFor0(k){
+  const s=SCHEMA[k];
+  if(k in DEFAULT_OVERRIDE) return DEFAULT_OVERRIDE[k];
+  if(s.def!==null && s.def!==undefined){
+    if(s.t==="boolean") return s.def===true||s.def===1||s.def==="1"||s.def==="true";
+    if(s.t==="integer") return Number(s.def);
+    return String(s.def);
+  }
+  if(s.t==="boolean") return false;
+  if(s.e && s.e.length) return s.e.includes("FALSE")?"FALSE":s.e[0];
+  if(s.t==="integer") return "";
+  return "";
+}
+
+const PRESETS = {
+  balanced:{
+    InteractiveMode:2, WorkflowBackgroundPatchClosedApps:true, WorkflowStageUpdates:true,
+    IgnoredLabels:"microsoft*",
+    InstallomatorOptions:"BLOCKING_PROCESS_ACTION=prompt_user NOTIFY=silent LOGO=microsoft",
+    DeferralTimerDefault:"1440", DeferralTimerMenu:"60,240,1440", DeadlineCountHard:"3", DeadlineDaysHard:"5",
+    DeadlineCountFocus:"3", DialogTimeoutDeferral:"300", DialogTimeoutDeferralAction:"Defer",
+    DaysUntilReset:"7", PatchWeekStartDay:"1", AppTitle:"App Updates", DialogOnTop:"TRUE", UnattendedExit:"TRUE", UnattendedExitSeconds:60,
+    SupportTeamName:"IT Service Desk", SupportTeamEmail:"servicedesk@company.com", SupportTeamWebsite:"support.company.com",
+    SelfUpdateEnabled:true, SelfUpdateFrequency:"weekly", WebhookFeature:"FALSE"
+  },
+  monthly:null, silent:null, discovery:null,
+  intuneSample:{
+    InteractiveMode:2, IgnoredLabels:"microsoft* googlechrome*", RequiredLabels:"desktoppr dockutil nudgesuite",
+    OptionalLabels:"1password8 adobereaderdc amazonchime apparency firefoxpkg vlc zoom", AppTitle:"App Auto-Patch via Intune",
+    ConvertAppsInHomeFolder:"TRUE", IgnoreAppsInHomeFolder:"FALSE", InstallomatorOptions:"BLOCKING_PROCESS_ACTION=prompt_user NOTIFY=silent LOGO=microsoft",
+    InstallomatorVersion:"Main", PatchWeekStartDay:"1", DeferralTimerFocus:"60", DeferralTimerError:"60", DialogTimeoutDeferral:"300",
+    DialogTimeoutDeferralAction:"Defer", DeferralTimerMenu:"30,60,90,480,720,1440,2880", DeadlineCountFocus:"3", DeadlineCountHard:"3",
+    DaysUntilReset:"7", UnattendedExit:"FALSE", UnattendedExitSeconds:60, DialogOnTop:"TRUE", DialogQuitHandlingDiscoveryStaging:"PROMPT",
+    StaleProcessTimeoutSeconds:3600, UseOverlayIcon:"TRUE", RemoveInstallomatorPath:"FALSE", VerboseMode:true,
+    WorkflowDisableAppDiscovery:"FALSE", WorkflowScheduledDiscovery:false, WorkflowDiscoveryOnlyBackgroundPatchClosedApps:false,
+    WorkflowDisableRelaunch:"FALSE", WebhookFeature:"FALSE", SupportTeamName:"Company Support Team", SupportTeamPhone:"555-555-5555",
+    SupportTeamEmail:"support@company.com", SupportTeamWebsite:"support.company.com"
+  }
+};
+PRESETS.monthly = Object.assign({}, PRESETS.balanced, {
+  MonthlyPatchingCadenceEnabled:true, MonthlyPatchingCadenceOrdinalValue:"second", MonthlyPatchingCadenceWeekdayIndex:"tuesday",
+  MonthlyPatchingCadenceStartTime:"10:00:00", DaysUntilReset:"14",
+  BusinessHoursRespectHardDeadline:false
+});
+PRESETS.silent = {
+  InteractiveMode:0, IgnoredLabels:"microsoft*", InstallomatorOptions:"BLOCKING_PROCESS_ACTION=quit_kill NOTIFY=silent LOGO=microsoft",
+  DeferralTimerWorkflowRelaunch:"1440", DaysUntilReset:"1", ShowNotificationsAll:false, ShowDockIcon:false,
+  SelfUpdateEnabled:true, SelfUpdateFrequency:"weekly", WebhookFeature:"FALSE"
+};
+PRESETS.discovery = {
+  InteractiveMode:2, WorkflowDisableRelaunch:"TRUE", WorkflowScheduledDiscovery:true, DiscoveryFrequency:24,
+  WorkflowDiscoveryOnlyBackgroundPatchClosedApps:true, WorkflowStageUpdates:true, IgnoredLabels:"microsoft*",
+  ShowNotificationsAll:false, ShowNotificationsAppsQueued:true, ShowNotificationsSilentUpdated:true,
+  InstallomatorOptions:"BLOCKING_PROCESS_ACTION=prompt_user NOTIFY=silent LOGO=microsoft"
+};
+
+/* ---------- state ---------- */
+const STORE_KEY = "aap-intune-configurator-v1";
+function freshState(){
+  const values={}, include={};
+  for(const k of Object.keys(SCHEMA)){ values[k]=defaultFor(k); include[k]=false; }
+  return {
+    values, include, method:"script", ref:"Version_3.7.7", refCustom:"", hash:HASHES["Version_3.7.7"], hashEdited:false,
+    reinstall:"missing", flagResetDefaults:true, flagResetLabels:true, flagVerbose:false,
+    org:"", idPrefix:"com.contoso", xLogin:true, xNotif:true, notifStyle:"1", ca:"AAPVersion",
+    uuids:{}, ltab:"install", otab:"pref", onlyOn:false, extraKeys:{}
+  };
+}
+let S = freshState();
+try{
+  const saved = JSON.parse(localStorage.getItem(STORE_KEY)||"null");
+  if(saved && saved.values){
+    const base=freshState();
+    S = Object.assign(base, saved);
+    S.values = Object.assign(base.values, saved.values);
+    S.include = Object.assign(base.include, saved.include);
+    for(const k of Object.keys(S.values)) S.values[k]=norm(k,S.values[k]);
+    if(saved.ref==="Version_3.7.5" && saved.hash===HASHES["Version_3.7.5"]){ S.ref="Version_3.7.7"; S.hash=HASHES["Version_3.7.7"]; }
+  }
+}catch(e){}
+if(!Object.keys(S.include).some(k=>S.include[k])) applyPreset("balanced", true);
+
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){} }
+function uuid(name){
+  if(!S.uuids[name]){
+    S.uuids[name] = (crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==="x"?r:(r&3|8)).toString(16)})).toUpperCase();
+  }
+  return S.uuids[name];
+}
+
+function applyPreset(name, silent){
+  for(const k of Object.keys(SCHEMA)){ S.values[k]=defaultFor(k); S.include[k]=false; }
+  S.extraKeys={};
+  const p = PRESETS[name];
+  if(p) for(const [k,v] of Object.entries(p)){ if(k in SCHEMA){ S.values[k]=norm(k,v); S.include[k]=true; } }
+  if(!silent){ renderGroups(); renderOut(); save(); toast(name==="none"?"All keys cleared":"Preset applied"); }
+}
+
+/* ---------- helpers ---------- */
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const xml = s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),1600); }
+const inFrame = (()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
+if(inFrame) document.documentElement.classList.add("hidden-dl");
+
+async function copyText(text){
+  try{ await navigator.clipboard.writeText(text); toast("Copied to clipboard"); }
+  catch(e){
+    const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select();
+    let ok=false; try{ ok=document.execCommand("copy"); }catch(_){}
+    ta.remove(); toast(ok?"Copied to clipboard":"Copy blocked here. Select the text and copy it manually.");
+  }
+}
+/* ---------- zip (store, no compression) so real filenames and exec bits survive ---------- */
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_T[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function makeZip(files){ // [{name, text, exec}]
+  const enc=new TextEncoder(), parts=[], central=[]; let off=0;
+  const d=new Date(), dosT=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1), dosD=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();
+  for(const f of files){
+    const nm=enc.encode(f.name), data=enc.encode(f.text), crc=crc32(data);
+    const h=new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);
+    h.setUint16(10,dosT,true);h.setUint16(12,dosD,true);h.setUint32(14,crc,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);
+    h.setUint16(26,nm.length,true);h.setUint16(28,0,true);
+    parts.push(new Uint8Array(h.buffer),nm,data);
+    const c=new DataView(new ArrayBuffer(46));
+    c.setUint32(0,0x02014b50,true);c.setUint16(4,(3<<8)|20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(10,0,true);
+    c.setUint16(12,dosT,true);c.setUint16(14,dosD,true);c.setUint32(16,crc,true);c.setUint32(20,data.length,true);c.setUint32(24,data.length,true);
+    c.setUint16(28,nm.length,true);c.setUint32(38,((f.exec?0o100755:0o100644)<<16)>>>0,true);c.setUint32(42,off,true);
+    central.push(new Uint8Array(c.buffer),nm);
+    off+=30+nm.length+data.length;
+  }
+  const cdSize=central.reduce((a,b)=>a+b.length,0);
+  const e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cdSize,true);e.setUint32(16,off,true);
+  return new Blob([...parts,...central,new Uint8Array(e.buffer)],{type:"application/zip"});
+}
+
+/* ---------- saving files ---------- */
+let dlApi=null;
+if(inFrame && window.claude && window.claude.use){
+  window.claude.use("downloads").then(api=>{ dlApi=api; if(api){ document.documentElement.classList.remove("hidden-dl"); renderOut(); } }).catch(()=>{});
+}
+function blobSave(name, blob){
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+async function saveBlob(name, blob){
+  if(!inFrame){ blobSave(name, blob); toast("Saved "+name); return; }
+  if(!dlApi){ toast("Downloads aren't available in this view. Use Copy instead."); return; }
+  try{ await dlApi.save({filename:name, data:blob}); toast("Saved "+name); }
+  catch(e){
+    if(e&&e.code==="declined") return;
+    if(e&&e.code==="rate_limited"){ toast("A save prompt is already open."); return; }
+    toast("Couldn't save the file"+(e&&e.message?": "+e.message:"."));
+  }
+}
+const isExec=n=>/\.(zsh|sh)$/.test(n);
+// Single file: raw when opened locally; zipped in the artifact viewer (it only allows a few extensions).
+function download(name, text){
+  if(!inFrame){ blobSave(name, new Blob([text],{type:"text/plain"})); toast("Saved "+name); return; }
+  saveBlob(name.replace(/\.[^.]+$/,"")+".zip", makeZip([{name, text, exec:isExec(name)}]));
+}
+function bundleFiles(){
+  const f=[];
+  f.push({name:"1-Configuration-Profile/xyz.techitout.appAutoPatch.xml", text:prefFile()});
+  f.push({name:"1-Configuration-Profile/AppAutoPatch.mobileconfig", text:mobileconfig()});
+  if(S.method==="script") f.push({name:"2-Install/AAP-Intune-Installer.zsh", text:installScript(), exec:true});
+  f.push({name:`3-Custom-Attribute/AAP-${S.ca}.zsh`, text:caScript(), exec:true});
+  f.push({name:"4-Uninstall/AAP-Uninstall.zsh", text:unScript(), exec:true});
+  f.push({name:"README.txt", text:readmeText()});
+  return f.map(x=>({...x, name:"AppAutoPatch-Intune/"+x.name}));
+}
+function readmeText(){
+  const iss=issues();
+  return `App Auto-Patch for Microsoft Intune
+Generated ${new Date().toISOString().slice(0,10)} · AAP ${S.method==="script"?refValue():"release PKG"}
+
+1-Configuration-Profile
+  Use ONE of these, not both:
+  - xyz.techitout.appAutoPatch.xml
+      Devices > macOS > Configuration > Create > Templates > Preference file
+      Preference domain name: xyz.techitout.appAutoPatch
+      Deployment channel: Device channel
+  - AppAutoPatch.mobileconfig
+      Templates > Custom, Deployment channel: Device channel
+      Contains AAP preferences${S.xLogin?", managed login item":""}${S.xNotif?", swiftDialog notifications":""}.
+
+2-Install
+${S.method==="script"?`  AAP-Intune-Installer.zsh
+      Devices > Scripts and remediations > Platform scripts > Add > macOS
+      Run script as signed-in user: No
+      Hide script notifications on devices: Yes
+      Script frequency: ${S.reinstall==="always"?"Not configured":"Every 1 day"}
+      Max number of times to retry if script fails: 3`:`  Download the .pkg from https://github.com/App-Auto-Patch/App-Auto-Patch/releases/latest
+      Apps > macOS > Create > macOS app (PKG)
+      Detection: xyz.techitout.appAutoPatch.installer
+      Ignore app version: No`}
+
+3-Custom-Attribute
+  Devices > macOS > Custom attributes > Add, Data type: String
+
+4-Uninstall
+  Remove the profile and install assignment first, then run once as root.
+
+${iss.length?"Checks before assigning:\n"+iss.map(([l,m])=>`  [${l==="bad"?"FIX":"CHECK"}] ${m}`).join("\n")+"\n":""}`;
+}
+function downloadAll(){ saveBlob("AppAutoPatch-Intune.zip", makeZip(bundleFiles())); }
+
+/* ---------- settings UI ---------- */
+function splitLabels(v){ return String(v||"").split(/\s+/).filter(Boolean); }
+function splitMinutes(v){ return String(v||"").split(",").map(s=>s.trim()).filter(Boolean); }
+function fmtMinutes(m){ m=Number(m); if(!isFinite(m)) return ""; if(m%1440===0) return (m/1440)+"d"; if(m%60===0) return (m/60)+"h"; return m+"m"; }
+
+function setVal(k, v, opts={}){
+  S.values[k]=v; S.include[k]=true;
+  const row=document.querySelector(`.fld[data-k="${k}"]`);
+  if(row){ row.classList.remove("off"); row.querySelector(".inc").checked=true; }
+  updateGroupCounts(); renderOut(); save();
+}
+
+function control(k){
+  const s=SCHEMA[k], v=S.values[k], wrap=document.createElement("div"); wrap.className="ctl";
+  const id="v_"+k;
+  if(LABEL_KEYS.has(k) || MINUTES_KEYS.has(k)){
+    const isMin = MINUTES_KEYS.has(k);
+    const box=document.createElement("div"); box.className="chips";
+    const inp=document.createElement("input"); inp.id=id; inp.placeholder=isMin?"Add minutes, e.g. 240":"Add a label, press Enter"; inp.setAttribute("aria-label",s.title);
+    const list=()=>isMin?splitMinutes(S.values[k]):splitLabels(S.values[k]);
+    const join=a=>isMin?a.join(","):a.join(" ");
+    const draw=()=>{
+      box.querySelectorAll(".c").forEach(n=>n.remove());
+      list().forEach((item,i)=>{
+        const c=document.createElement("span"); c.className="c"+(item.includes("*")?" wild":"");
+        c.innerHTML=esc(isMin?`${item} (${fmtMinutes(item)})`:item)+'<button type="button" aria-label="Remove">×</button>';
+        c.querySelector("button").onclick=()=>{ const a=list(); a.splice(i,1); setVal(k,join(a)); draw(); };
+        box.insertBefore(c,inp);
+      });
+    };
+    const add=()=>{
+      const parts=inp.value.split(isMin?/[\s,]+/:/[\s,]+/).map(x=>x.trim()).filter(Boolean);
+      if(!parts.length) return;
+      const a=list(); for(const p of parts){ if(isMin && !/^\d+$/.test(p)) continue; if(!a.includes(p)) a.push(p); }
+      if(isMin) a.sort((x,y)=>x-y);
+      inp.value=""; setVal(k,join(a)); draw();
+    };
+    inp.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===","||(e.key===" "&&!isMin)){ e.preventDefault(); add(); } else if(e.key==="Backspace"&&!inp.value){ const a=list(); a.pop(); setVal(k,join(a)); draw(); } });
+    inp.addEventListener("blur",add);
+    inp.addEventListener("paste",e=>{ setTimeout(add,0); });
+    box.appendChild(inp); draw(); box.onclick=e=>{ if(e.target===box) inp.focus(); };
+    wrap.appendChild(box);
+    if(k==="IgnoredLabels"){ const h=document.createElement("div"); h.className="help"; h.textContent="Tip: microsoft* hands Office, Edge, Teams and Defender to Microsoft AutoUpdate and Intune."; wrap.appendChild(h); }
+    return wrap;
+  }
+  if(k==="BusinessHours") return businessHours(wrap);
+  if(s.t==="boolean" || (s.e && s.e.length===2 && s.e.includes("TRUE"))){
+    const isStr = s.t!=="boolean";
+    const lab=document.createElement("label"); lab.className="sw";
+    const on = isStr ? v==="TRUE" : !!v;
+    lab.innerHTML=`<input type="checkbox" id="${id}" ${on?"checked":""}><i></i><span>${on?"On":"Off"}</span>`;
+    const cb=lab.querySelector("input");
+    cb.onchange=()=>{ lab.querySelector("span").textContent=cb.checked?"On":"Off"; setVal(k, isStr?(cb.checked?"TRUE":"FALSE"):cb.checked); };
+    wrap.appendChild(lab); return wrap;
+  }
+  if(s.e && s.e.length){
+    const sel=document.createElement("select"); sel.id=id;
+    for(const o of s.e){ const op=document.createElement("option"); op.value=o; op.textContent=(ENUM_LABELS[k]&&ENUM_LABELS[k][o])||o; if(String(o)===String(v)) op.selected=true; sel.appendChild(op); }
+    sel.onchange=()=>setVal(k, s.t==="integer"?Number(sel.value):sel.value);
+    wrap.appendChild(sel); return wrap;
+  }
+  if(k==="MonthlyPatchingCadenceStartTime"){
+    const t=document.createElement("input"); t.type="time"; t.step=60; t.id=id; t.value=String(v||"").slice(0,5);
+    t.onchange=()=>setVal(k, t.value?t.value+":00":"");
+    wrap.appendChild(t); return wrap;
+  }
+  const numericString = s.t==="string" && /^\d*$/.test(String(s.def??"")) && s.def!==null && s.def!==undefined && s.def!=="" || ["DeadlineDaysFocus","DeadlineDaysHard","DaysUntilReset"].includes(k);
+  const inp=document.createElement("input"); inp.id=id;
+  inp.type = (s.t==="integer"||numericString)?"number":"text";
+  if(inp.type==="number"){ inp.min=0; inp.step=1; inp.inputMode="numeric"; }
+  if(k==="GitHubAPIToken"){ inp.type="text"; inp.autocomplete="off"; inp.style.fontFamily="var(--f-mono)"; inp.placeholder="github_pat_…"; }
+  if(/URL/.test(k)) inp.placeholder="https://…";
+  if(/Script$/.test(k)) inp.placeholder="/Library/Management/AppAutoPatch/Hooks/…";
+  inp.spellcheck=false; inp.value=v??"";
+  inp.oninput=()=>setVal(k, s.t==="integer"?(inp.value===""?"":Number(inp.value)):inp.value);
+  wrap.appendChild(inp);
+  const unit = /^DeferralTimer/.test(k)?"minutes":/Seconds$|^DialogTimeout/.test(k)?"seconds":/^DeadlineDays|DaysUntilReset/.test(k)?"days":k==="DiscoveryFrequency"?"hours":/^DeadlineCount/.test(k)?"deferrals":null;
+  if(unit){ const h=document.createElement("div"); h.className="help"; const upd=()=>{ h.textContent = unit + (unit==="minutes"&&inp.value?` · ${fmtMinutes(inp.value)}`:""); }; upd(); inp.addEventListener("input",upd); wrap.appendChild(h); }
+  return wrap;
+}
+
+const DAYS=["MON","TUE","WED","THU","FRI","SAT","SUN"];
+function parseBH(str){
+  const m={}; DAYS.forEach(d=>m[d]=null);
+  String(str||"").split(",").forEach(p=>{ const r=/^([A-Z]{3}):(\d{2}:\d{2})-(\d{2}:\d{2})$/.exec(p.trim()); if(r && r[1] in m && !m[r[1]]) m[r[1]]=[r[2],r[3]]; });
+  return m;
+}
+function businessHours(wrap){
+  const box=document.createElement("div"); box.className="bh";
+  const raw=document.createElement("input"); raw.type="text"; raw.id="v_BusinessHours"; raw.spellcheck=false; raw.style.fontFamily="var(--f-mono)"; raw.style.fontSize="11.5px";
+  const draw=()=>{
+    box.innerHTML=""; const m=parseBH(S.values.BusinessHours);
+    DAYS.forEach(d=>{
+      const on=!!m[d], [a,b]=m[d]||["09:00","17:00"];
+      const row=document.createElement("div"); row.className="day"+(on?"":" off");
+      row.innerHTML=`<label class="sw"><input type="checkbox" ${on?"checked":""} aria-label="Block ${d}"><i></i></label><b>${d}</b><input type="time" value="${a}" aria-label="${d} from"><span class="help">to</span><input type="time" value="${b}" aria-label="${d} to">`;
+      row.style.gridTemplateColumns="auto 34px minmax(0,1fr) auto minmax(0,1fr)";
+      const [cb,t1,t2]=row.querySelectorAll("input");
+      const commit=()=>{ const mm=parseBH(S.values.BusinessHours); mm[d]=cb.checked?[t1.value||"09:00",t2.value||"17:00"]:null; const s=DAYS.filter(x=>mm[x]).map(x=>`${x}:${mm[x][0]}-${mm[x][1]}`).join(","); setVal("BusinessHours",s); raw.value=s; row.classList.toggle("off",!cb.checked); };
+      cb.onchange=commit; t1.onchange=commit; t2.onchange=commit;
+      box.appendChild(row);
+    });
+  };
+  raw.value=S.values.BusinessHours||""; raw.placeholder="MON:09:00-17:00,TUE:09:00-17:00";
+  raw.onchange=()=>{ setVal("BusinessHours",raw.value.replace(/\s+/g,"")); draw(); };
+  draw();
+  const h=document.createElement("div"); h.className="help"; h.textContent="Hours when interactive AAP must not run. The picker covers one window per day; type in the raw field for split windows.";
+  wrap.append(box,raw,h); return wrap;
+}
+
+function renderGroups(){
+  const host=$("#groups"); const open=new Set([...host.querySelectorAll("details[open]")].map(d=>d.dataset.g));
+  const first = host.children.length===0;
+  host.innerHTML="";
+  const q=($("#filter").value||"").toLowerCase().trim();
+  let shown=0;
+  for(const g of GROUPS){
+    const keys=g.keys.filter(k=>SCHEMA[k]).filter(k=>!q || k.toLowerCase().includes(q) || SCHEMA[k].title.toLowerCase().includes(q) || (SCHEMA[k].d||"").toLowerCase().includes(q)).filter(k=>!S.onlyOn||S.include[k]);
+    if(!keys.length) continue;
+    const det=document.createElement("details"); det.className="grp"; det.dataset.g=g.id;
+    if(q || S.onlyOn || open.has(g.id) || (first && g.id==="mode")) det.open=true;
+    det.innerHTML=`<summary>${esc(g.title)}<span class="gcount" data-gc="${g.id}"></span></summary><div class="fields"></div>`;
+    const fields=det.querySelector(".fields");
+    for(const k of keys){
+      shown++;
+      const s=SCHEMA[k]; const row=document.createElement("div"); row.className="fld"+(S.include[k]?"":" off"); row.dataset.k=k;
+      const long=(s.d||"").length>150;
+      row.innerHTML=`<input type="checkbox" class="inc" aria-label="Include ${esc(k)}" ${S.include[k]?"checked":""}><div style="min-width:0"><div class="t">${esc(s.title)}</div><div class="k">${esc(k)} · ${s.t==="boolean"?"bool":s.t==="integer"?"int":"string"}</div><div class="d${long?" clamp":""}" title="${long?"Click to expand":""}">${esc(s.d||"")}</div></div>`;
+      row.querySelector(".d").onclick=e=>e.currentTarget.classList.remove("clamp");
+      row.appendChild(control(k));
+      row.querySelector(".inc").onchange=e=>{ S.include[k]=e.target.checked; row.classList.toggle("off",!e.target.checked); updateGroupCounts(); renderOut(); save(); };
+      fields.appendChild(row);
+    }
+    host.appendChild(det);
+  }
+  if(!shown) host.innerHTML=`<p class="help">No keys match “${esc(q)}”.</p>`;
+  updateGroupCounts();
+}
+function updateGroupCounts(){
+  for(const g of GROUPS){ const el=document.querySelector(`[data-gc="${g.id}"]`); if(!el) continue; const n=g.keys.filter(k=>S.include[k]).length; el.textContent=n?`${n} set`:`${g.keys.length} keys`; el.classList.toggle("on",n>0); }
+}
+
+/* ---------- validation ---------- */
+function issues(){
+  const v=S.values, on=k=>S.include[k], out=[];
+  const val=k=>on(k)?v[k]:defaultFor(k);
+  if(on("OptionalLabels") && /\*/.test(v.OptionalLabels)) out.push(["bad","OptionalLabels does not support wildcards. Move wildcard entries to RequiredLabels or IgnoredLabels."]);
+  const ign=splitLabels(val("IgnoredLabels")), req=splitLabels(val("RequiredLabels"));
+  const both=req.filter(x=>ign.includes(x)); if(on("IgnoredLabels")&&on("RequiredLabels")&&both.length) out.push(["warn",`Listed as both required and ignored: ${both.join(", ")}.`]);
+  if(on("WebhookFeature") && v.WebhookFeature!=="FALSE" && !["WebhookURLTeams","WebhookURLSlack","WebhookURLGoogleChat"].some(k=>on(k)&&String(v[k]).startsWith("https://"))) out.push(["warn","Webhooks are switched on but no webhook URL is set."]);
+  for(const k of ["WebhookURLTeams","WebhookURLSlack","WebhookURLGoogleChat","GitHubAPIToken"]) if(on(k)&&v[k]) out.push(["warn",`${k} is readable by any local user in /Library/Managed Preferences. Use a token or webhook scoped to this job only.`]);
+  if(on("GitHubAPIAuthEnabled")&&v.GitHubAPIAuthEnabled===true&&!(on("GitHubAPIToken")&&/^(gh[pousr]_|github_pat_)/.test(v.GitHubAPIToken||""))) out.push(["bad","GitHub API auth is on but GitHubAPIToken is missing or doesn't look like a GitHub token."]);
+  if(on("MonthlyPatchingCadenceEnabled")&&v.MonthlyPatchingCadenceEnabled && !(on("MonthlyPatchingCadenceOrdinalValue")&&on("MonthlyPatchingCadenceWeekdayIndex")&&on("MonthlyPatchingCadenceStartTime"))) out.push(["bad","Monthly cadence needs Ordinal Value, Weekday Index and Start Time ticked as well."]);
+  if(on("InstallomatorVersion")&&v.InstallomatorVersion==="Custom"&&!(on("InstallomatorVersionCustomRepoPath")&&/^[\w.-]+\/[\w.-]+$/.test(v.InstallomatorVersionCustomRepoPath))) out.push(["bad","Custom Installomator needs a repo path in owner/repo form."]);
+  for(const k of ["PrePatchScript","PostPatchScript"]) if(on(k)&&v[k]&&!String(v[k]).startsWith("/Library/Management/AppAutoPatch/Hooks/")) out.push(["bad",`${k} must live under /Library/Management/AppAutoPatch/Hooks/ or AAP refuses to run it.`]);
+  if(on("BusinessHours")&&v.BusinessHours&&!/^([A-Z]{3}:\d{2}:\d{2}-\d{2}:\d{2})(,[A-Z]{3}:\d{2}:\d{2}-\d{2}:\d{2})*$/.test(v.BusinessHours)) out.push(["bad","BusinessHours format is DAY:hh:mm-hh:mm, comma-separated, no spaces."]);
+  if(Number(val("InteractiveMode"))===0){
+    const uiOn=["AppTitle","DialogIcon","BannerImage","DeferralTimerMenu","DialogTimeoutDeferral"].filter(on);
+    if(uiOn.length) out.push(["warn",`InteractiveMode 0 never shows dialogs, so ${uiOn.join(", ")} will have no effect.`]);
+  }
+  if(on("DeferralTimerMenu")){ const bad=splitMinutes(v.DeferralTimerMenu).filter(x=>!/^\d+$/.test(x)); if(bad.length) out.push(["bad","DeferralTimerMenu must be whole minutes separated by commas."]); }
+  if(val("WorkflowDisableRelaunch")===true && !(on("WorkflowScheduledDiscovery")&&v.WorkflowScheduledDiscovery)) out.push(["warn","Relaunch is disabled, so AAP runs once after install and then only when triggered. Turn on Scheduled Discovery to keep reporting."]);
+  if(on("SkipPreUpdateVerification")&&v.SkipPreUpdateVerification) out.push(["warn","Skipping pre-update verification removes the Gatekeeper/Team ID check. Use it only to work around a specific app."]);
+  if(S.method==="script" && S.ref==="main") out.push(["warn","Ref main changes with every commit, so the hash check will start failing after the next push. Pin a Version_ tag."]);
+  if(S.method==="script" && !/^[a-f0-9]{64}$/i.test(S.hash.trim())) out.push(["bad","The SHA-256 hash should be 64 hex characters."]);
+  if(S.method==="script" && S.ref==="custom" && !S.refCustom.trim()) out.push(["bad","Enter a custom tag or commit."]);
+  const extra=Object.keys(S.extraKeys||{}); if(extra.length) out.push(["warn",`Imported keys AAP doesn't recognise were dropped: ${extra.join(", ")}.`]);
+  if(!Object.values(S.include).some(Boolean)) out.push(["warn","No keys are ticked. AAP will run entirely on built-in defaults."]);
+  return out;
+}
+
+/* ---------- generators ---------- */
+const includedKeys=()=>ORDER.filter(k=>S.include[k]&&SCHEMA[k]).filter(k=>!(S.values[k]===""||S.values[k]===null||S.values[k]===undefined||(SCHEMA[k].t==="integer"&&isNaN(S.values[k]))));
+function plistValue(k){
+  const s=SCHEMA[k], v=S.values[k];
+  if(s.t==="boolean"){
+    if(LEGACY_STRING_BOOLS.has(k) && legacyBools()) return `<string>${v?"TRUE":"FALSE"}</string>`;
+    return v?"<true/>":"<false/>";
+  }
+  if(s.t==="integer") return `<integer>${parseInt(v,10)||0}</integer>`;
+  return `<string>${xml(v??"")}</string>`;
+}
+function keysXML(indent){
+  return includedKeys().map(k=>`${indent}<key>${k}</key>\n${indent}${plistValue(k)}`).join("\n");
+}
+function prefFile(){ return keysXML("") + "\n"; }
+function prefPlist(){ return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n${keysXML("\t")}\n</dict>\n</plist>\n`; }
+
+function prefix(){ return (S.idPrefix||"com.example").replace(/\s+/g,"").replace(/\.$/,""); }
+function mobileconfig(){
+  const p=prefix(), org=S.org?`\t<key>PayloadOrganization</key>\n\t<string>${xml(S.org)}</string>\n`:"";
+  const payloads=[];
+  payloads.push(`\t\t<dict>
+\t\t\t<key>PayloadDisplayName</key>
+\t\t\t<string>App Auto-Patch Preferences</string>
+\t\t\t<key>PayloadIdentifier</key>
+\t\t\t<string>${p}.appautopatch.prefs.${uuid("prefs")}</string>
+\t\t\t<key>PayloadType</key>
+\t\t\t<string>xyz.techitout.appAutoPatch</string>
+\t\t\t<key>PayloadUUID</key>
+\t\t\t<string>${uuid("prefs")}</string>
+\t\t\t<key>PayloadVersion</key>
+\t\t\t<integer>1</integer>
+${keysXML("\t\t\t")}
+\t\t</dict>`);
+  if(S.xLogin) payloads.push(`\t\t<dict>
+\t\t\t<key>PayloadDisplayName</key>
+\t\t\t<string>App Auto-Patch Managed Login Item</string>
+\t\t\t<key>PayloadIdentifier</key>
+\t\t\t<string>${p}.appautopatch.loginitem.${uuid("login")}</string>
+\t\t\t<key>PayloadType</key>
+\t\t\t<string>com.apple.servicemanagement</string>
+\t\t\t<key>PayloadUUID</key>
+\t\t\t<string>${uuid("login")}</string>
+\t\t\t<key>PayloadVersion</key>
+\t\t\t<integer>1</integer>
+\t\t\t<key>Rules</key>
+\t\t\t<array>
+\t\t\t\t<dict>
+\t\t\t\t\t<key>Comment</key>
+\t\t\t\t\t<string>App Auto-Patch LaunchDaemon</string>
+\t\t\t\t\t<key>RuleType</key>
+\t\t\t\t\t<string>Label</string>
+\t\t\t\t\t<key>RuleValue</key>
+\t\t\t\t\t<string>xyz.techitout.aap</string>
+\t\t\t\t</dict>
+\t\t\t</array>
+\t\t</dict>`);
+  if(S.xNotif) payloads.push(`\t\t<dict>
+\t\t\t<key>PayloadDisplayName</key>
+\t\t\t<string>swiftDialog Notifications</string>
+\t\t\t<key>PayloadIdentifier</key>
+\t\t\t<string>${p}.appautopatch.notifications.${uuid("notif")}</string>
+\t\t\t<key>PayloadType</key>
+\t\t\t<string>com.apple.notificationsettings</string>
+\t\t\t<key>PayloadUUID</key>
+\t\t\t<string>${uuid("notif")}</string>
+\t\t\t<key>PayloadVersion</key>
+\t\t\t<integer>1</integer>
+\t\t\t<key>NotificationSettings</key>
+\t\t\t<array>
+\t\t\t\t<dict>
+\t\t\t\t\t<key>BundleIdentifier</key>
+\t\t\t\t\t<string>au.csiro.dialog</string>
+\t\t\t\t\t<key>NotificationsEnabled</key>
+\t\t\t\t\t<true/>
+\t\t\t\t\t<key>AlertType</key>
+\t\t\t\t\t<integer>${S.notifStyle}</integer>
+\t\t\t\t\t<key>BadgesEnabled</key>
+\t\t\t\t\t<true/>
+\t\t\t\t\t<key>CriticalAlertEnabled</key>
+\t\t\t\t\t<false/>
+\t\t\t\t\t<key>ShowInLockScreen</key>
+\t\t\t\t\t<true/>
+\t\t\t\t\t<key>ShowInNotificationCenter</key>
+\t\t\t\t\t<true/>
+\t\t\t\t\t<key>SoundsEnabled</key>
+\t\t\t\t\t<true/>
+\t\t\t\t</dict>
+\t\t\t</array>
+\t\t</dict>`);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+\t<key>PayloadContent</key>
+\t<array>
+${payloads.join("\n")}
+\t</array>
+\t<key>PayloadDescription</key>
+\t<string>Managed settings for App Auto-Patch${S.xLogin?", its LaunchDaemon login item":""}${S.xNotif?" and swiftDialog notifications":""}.</string>
+\t<key>PayloadDisplayName</key>
+\t<string>App Auto-Patch</string>
+\t<key>PayloadIdentifier</key>
+\t<string>${p}.appautopatch.${uuid("root")}</string>
+${org}\t<key>PayloadScope</key>
+\t<string>System</string>
+\t<key>PayloadType</key>
+\t<string>Configuration</string>
+\t<key>PayloadUUID</key>
+\t<string>${uuid("root")}</string>
+\t<key>PayloadVersion</key>
+\t<integer>1</integer>
+</dict>
+</plist>
+`;
+}
+
+function refValue(){ return S.ref==="custom"?(S.refCustom.trim()||"Version_x.y.z"):S.ref; }
+function expectedVersion(){ const m=/^Version_(\d+(?:\.\d+)*)$/.exec(refValue()); return m?m[1]:""; }
+function installScript(){
+  const ref=refValue(), ver=expectedVersion();
+  const flags=[S.flagResetDefaults&&"--reset-defaults",S.flagResetLabels&&"--reset-labels",S.flagVerbose&&"--verbose-mode"].filter(Boolean).join(" ");
+  const mode=S.reinstall==="older"&&!ver?"missing":S.reinstall;
+  const today=new Date().toISOString().slice(0,10);
+  return `#!/bin/zsh --no-rcs
+#
+# App Auto-Patch installer for Microsoft Intune
+# Downloads App-Auto-Patch-via-Dialog.zsh from GitHub, verifies its SHA-256,
+# and runs it once so AAP installs itself and its LaunchDaemon.
+#
+# Intune: Devices > Scripts and remediations > Platform scripts > macOS
+# Run script as signed-in user: No   (must run as root)
+#
+# Based on AAP-Intune-Installer.zsh by Andrew Spokes (@TechTrekkie)
+# https://github.com/App-Auto-Patch/App-Auto-Patch
+# Generated ${today}
+
+autoload -Uz is-at-least
+
+AAP_FOLDER="/Library/Management/AppAutoPatch"
+AAP_LOCAL_PLIST="\${AAP_FOLDER}/xyz.techitout.appAutoPatch"   # no ".plist"
+AAP_DAEMON_LABEL="xyz.techitout.aap"
+
+GITHUB_REF="${ref}"
+EXPECTED_VERSION="${ver}"
+HASH_CHECK="${S.hash.trim()}"
+REINSTALL_MODE="${mode}"   # missing | older | always
+AAP_FLAGS=(${flags})
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') [AAP-Intune] $*"; }
+
+# --- What is installed now? -------------------------------------------------
+installed=""
+if [[ -f "\${AAP_FOLDER}/appautopatch" ]]; then
+    installed=$(defaults read "\${AAP_LOCAL_PLIST}" AAPVersion 2>/dev/null)
+    if [[ -z "\${installed}" || "\${installed[1]}" != <-> ]]; then
+        installed=$(grep -m1 'scriptVersion=' "\${AAP_FOLDER}/appautopatch" | cut -d '"' -f 2)
+    fi
+fi
+log "Installed version: \${installed:-none}"
+
+case "\${REINSTALL_MODE}" in
+    missing)
+        if [[ -n "\${installed}" ]]; then
+            log "AAP is already installed; nothing to do."
+            exit 0
+        fi ;;
+    older)
+        if [[ -n "\${installed}" ]] && is-at-least "\${EXPECTED_VERSION}" "\${installed}"; then
+            log "Installed \${installed} is at least \${EXPECTED_VERSION}; nothing to do."
+            exit 0
+        fi ;;
+    always) ;;
+esac
+
+# --- Download and verify ---------------------------------------------------------
+AAP_TEMP=$(mktemp -d /private/var/tmp/aap_intune.XXXXXX) || exit 1
+trap 'rm -rf "\${AAP_TEMP}"' EXIT
+SCRIPT_PATH="\${AAP_TEMP}/App-Auto-Patch-via-Dialog.zsh"
+
+log "Downloading App Auto-Patch (\${GITHUB_REF})"
+if ! curl -fsSL --retry 3 --retry-delay 5 -o "\${SCRIPT_PATH}" \\
+    "https://raw.githubusercontent.com/App-Auto-Patch/App-Auto-Patch/\${GITHUB_REF}/App-Auto-Patch-via-Dialog.zsh"; then
+    log "Download failed" >&2
+    exit 1
+fi
+
+if ! echo "\${HASH_CHECK}  \${SCRIPT_PATH}" | shasum -a 256 -c - >/dev/null 2>&1; then
+    log "SHA-256 mismatch: expected \${HASH_CHECK}, got $(shasum -a 256 "\${SCRIPT_PATH}" | cut -d ' ' -f 1)" >&2
+    exit 1
+fi
+log "Checksum verified"
+
+# --- Install -------------------------------------------------------------------
+chmod 755 "\${SCRIPT_PATH}"
+"\${SCRIPT_PATH}" "\${AAP_FLAGS[@]}"
+rc=$?
+log "AAP self-install exited with \${rc}"
+
+sleep 5
+if ! launchctl print "system/\${AAP_DAEMON_LABEL}" >/dev/null 2>&1; then
+    if [[ -f "/Library/LaunchDaemons/\${AAP_DAEMON_LABEL}.plist" ]]; then
+        log "Bootstrapping \${AAP_DAEMON_LABEL}"
+        launchctl bootstrap system "/Library/LaunchDaemons/\${AAP_DAEMON_LABEL}.plist" &
+        disown
+    else
+        log "LaunchDaemon plist not found after install" >&2
+        exit 1
+    fi
+fi
+
+exit 0
+`;
+}
+
+function caScript(){
+  const k=S.ca;
+  return `#!/bin/zsh --no-rcs
+#
+# Intune custom attribute: App Auto-Patch ${k}
+# Data type: String
+#
+AAP_PLIST="/Library/Management/AppAutoPatch/xyz.techitout.appAutoPatch"
+
+if [[ ! -f "/Library/Management/AppAutoPatch/appautopatch" ]]; then
+    echo "Not installed"
+    exit 0
+fi
+if [[ ! -f "\${AAP_PLIST}.plist" ]]; then
+    echo "No preference file"
+    exit 0
+fi
+
+value=$(defaults read "\${AAP_PLIST}" ${k} 2>/dev/null)
+${k==="AAPVersion"?`if [[ -z "\${value}" ]]; then
+    value=$(grep -m1 'scriptVersion=' /Library/Management/AppAutoPatch/appautopatch | cut -d '"' -f 2)
+fi
+`:""}${k==="AAPPatchingCompletionStatus"?`case "\${value}" in
+    1|true|TRUE) value="true" ;;
+    0|false|FALSE) value="false" ;;
+esac
+`:""}echo "\${value:-Unknown}"
+exit 0
+`;
+}
+
+function unScript(){
+  return `#!/bin/zsh --no-rcs
+#
+# Remove App Auto-Patch (Intune platform script, run as root)
+# Also remove the AAP configuration profile and unassign the install script/app,
+# otherwise Intune will put it back.
+#
+AAP_BIN="/Library/Management/AppAutoPatch/appautopatch"
+[[ -x "\${AAP_BIN}" ]] || AAP_BIN="/usr/local/bin/appautopatch"
+
+if [[ -x "\${AAP_BIN}" ]]; then
+    "\${AAP_BIN}" --uninstall
+else
+    # Fallback if the script itself is already gone
+    launchctl bootout system /Library/LaunchDaemons/xyz.techitout.aap.plist 2>/dev/null
+    rm -f /Library/LaunchDaemons/xyz.techitout.aap.plist
+    rm -f /usr/local/bin/appautopatch
+    rm -rf /Library/Management/AppAutoPatch
+fi
+
+pkgutil --forget xyz.techitout.appAutoPatch.installer >/dev/null 2>&1
+echo "App Auto-Patch removed"
+exit 0
+`;
+}
+
+/* ---------- syntax colouring ---------- */
+function hlXML(s){
+  return esc(s).replace(/(&lt;\/?)(key)(&gt;)(.*?)(&lt;\/key&gt;)/g,'<span class="g">$1$2$3</span><span class="k">$4</span><span class="g">$5</span>')
+    .replace(/(&lt;string&gt;)(.*?)(&lt;\/string&gt;)/g,'<span class="g">$1</span><span class="s">$2</span><span class="g">$3</span>')
+    .replace(/(&lt;integer&gt;)(.*?)(&lt;\/integer&gt;)/g,'<span class="g">$1</span><span class="s">$2</span><span class="g">$3</span>')
+    .replace(/(&lt;(?:true|false)\/&gt;)/g,'<span class="s">$1</span>')
+    .replace(/(&lt;\/?(?:dict|array|plist[^&]*)&gt;|&lt;\?xml[^?]*\?&gt;|&lt;!DOCTYPE[^&]*&gt;)/g,'<span class="g">$1</span>');
+}
+function hlSh(s){
+  return esc(s).split("\n").map(l=>/^\s*#/.test(l)?`<span class="c">${l}</span>`:l.replace(/(&quot;|")(.*?)(\1)/g,'<span class="s">$1$2$3</span>').replace(/^([A-Z_]+)=/,'<span class="k">$1</span>=')).join("\n");
+}
+
+/* ---------- output rendering ---------- */
+function codeBlock(name, text, lang, intro){
+  return `${intro||""}<div class="ohead"><span class="fname">${esc(name)}</span><div class="btns"><button class="btn sm primary" data-act="copy">Copy</button><button class="btn sm dl" data-act="dl" data-name="${esc(name)}" title="${inFrame?"Saved as a .zip so the filename and permissions are kept":""}">${inFrame?"Download (.zip)":"Download"}</button></div></div><pre class="code" tabindex="0">${lang==="sh"?hlSh(text):hlXML(text)}</pre>`;
+}
+function kv(rows){ return `<div class="kv">${rows.map(([a,b])=>`<div>${a}</div><div>${b}</div>`).join("")}</div>`; }
+let currentText="";
+let prefWrap=false;
+
+function renderOut(){
+  const iss=issues();
+  const hasBad=iss.some(i=>i[0]==="bad");
+  $("#planTab").innerHTML = "Rollout plan"+(iss.length?` <span class="dot" style="background:var(${hasBad?"--bad":"--warn"})"></span>`:"");
+  const b=$("#obody"); let html="";
+  const n=includedKeys().length;
+  switch(S.otab){
+    case "pref":{
+      currentText = prefWrap?prefPlist():prefFile();
+      html = `<p class="lead">Upload this in Intune under <b>Devices › macOS › Configuration › Create › Templates › Preference file</b>. ${n} key${n===1?"":"s"} included.</p>`
+        + kv([["Preference domain name","<code>xyz.techitout.appAutoPatch</code>"],["Property list file",`<code>xyz.techitout.appAutoPatch.${prefWrap?"plist":"xml"}</code>`],["Deployment channel","Device channel"]])
+        + `<label class="sw" style="margin:4px 0 12px"><input type="checkbox" id="prefWrap" ${prefWrap?"checked":""}><i></i><span>Wrap in a full plist (only needed outside the Intune preference file template)</span></label>`
+        + codeBlock(`xyz.techitout.appAutoPatch.${prefWrap?"plist":"xml"}`, currentText, "xml");
+      break;
+    }
+    case "mc":{
+      currentText = mobileconfig();
+      const parts=["AAP preferences",S.xLogin&&"managed login item",S.xNotif&&"swiftDialog notifications"].filter(Boolean);
+      html = `<p class="lead">One unsigned profile with ${parts.join(", ")}. Upload under <b>Templates › Custom</b> with deployment channel <b>Device channel</b>. Use this <i>instead of</i> the preference file, not alongside it, or the AAP domain is delivered twice.</p>`
+        + `<div class="btns" style="margin-bottom:10px"><button class="btn sm" id="regen">New UUIDs</button><button class="btn sm" data-goto="extras">Edit payloads</button></div>`
+        + codeBlock("AppAutoPatch.mobileconfig", currentText, "xml");
+      break;
+    }
+    case "inst":{
+      if(S.method==="pkg"){
+        currentText="";
+        html = `<p class="lead">Add the release package in <b>Apps › macOS › Create › macOS app (PKG)</b>.</p>`
+          + kv([["App package file","<code>App-Auto-Patch</code> .pkg from the latest GitHub release"],["Publisher","App Auto-Patch"],["Minimum operating system","macOS 12 Monterey (AAP refuses to run on older)"],["Pre-/post-install script","None needed; the package's own postinstall runs AAP"],["Detection rules","Included app: <code>xyz.techitout.appAutoPatch.installer</code>"],["Ignore app version","No, so uploading a newer pkg upgrades Macs on an older one"],["Assignment","Required, to the same device group as the profile"]])
+          + `<p class="note">If you upload a newer pkg later, Intune upgrades Macs that report an older package version. That depends on the versioned pkg introduced in 3.6.x.</p>`;
+      } else {
+        currentText = installScript();
+        html = `<p class="lead">Add under <b>Devices › Scripts and remediations › Platform scripts › Add › macOS</b>.</p>`
+          + kv([["Run script as signed-in user","<b>No</b> (runs as root)"],["Hide script notifications on devices","Yes"],["Script frequency",S.reinstall==="always"?"Not configured (runs once)":"Every 1 day, so a removed install comes back"],["Max number of times to retry if script fails","3"]])
+          + codeBlock("AAP-Intune-Installer.zsh", currentText, "sh");
+      }
+      break;
+    }
+    case "ca":{
+      currentText = caScript();
+      html = `<p class="lead">Add under <b>Devices › macOS › Custom attributes › Add</b>. Intune re-runs it about every 8 hours.</p>`
+        + kv([["Data type of attribute","String"],["Assignment","Same group as AAP"]])
+        + codeBlock(`AAP-${S.ca}.zsh`, currentText, "sh");
+      break;
+    }
+    case "un":{
+      currentText = unScript();
+      html = `<p class="lead">Assign to an exclusion group when retiring AAP. Remove the install script or app assignment and the configuration profile first, or Intune puts AAP back.</p>`
+        + kv([["Run script as signed-in user","No"],["Script frequency","Not configured (runs once)"]])
+        + codeBlock("AAP-Uninstall.zsh", currentText, "sh");
+      break;
+    }
+    case "plan":{
+      currentText="";
+      const list=iss.length?iss.map(([lvl,msg])=>`<div class="iss ${lvl}"><span class="tag">${lvl==="bad"?"Fix":"Check"}</span><span>${esc(msg)}</span></div>`).join(""):`<div class="iss ok"><span class="tag">OK</span><span>No problems found in the current configuration.</span></div>`;
+      const im=Number(S.include.InteractiveMode?S.values.InteractiveMode:2);
+      html = `<div class="ohead dl"><span class="help">Every file below, in Intune order, with a README of the portal settings.</span><div class="btns"><button class="btn sm primary" data-act="all">Download all files (.zip)</button></div></div><h2 style="margin-bottom:10px">Before you assign</h2><div class="issues">${list}</div>
+      <h2 style="margin:18px 0 10px">Rollout order</h2>
+      <ol class="steps">
+        <li><div><b>Create a pilot group</b><p>A handful of IT Macs in an Entra ID device group. Assign everything below to it first.</p></div></li>
+        <li><div><b>Deploy the configuration profile</b><p>${S.xLogin||S.xNotif?"The .mobileconfig carries the preferences plus the supporting payloads.":"Either the preference file or the .mobileconfig, not both."} AAP reads managed preferences at every run, so the profile should land before or with the installer.</p></div></li>
+        <li><div><b>Deploy AAP</b><p>${S.method==="pkg"?"Required macOS app (PKG) assignment.":`Platform script pinned to <code class="inl">${esc(refValue())}</code> with hash check.`} AAP installs swiftDialog and Installomator itself on the first run.</p></div></li>
+        <li><div><b>Add the custom attribute</b><p>Reports <code class="inl">${esc(S.ca)}</code> per Mac, so you can see coverage in the Intune portal.</p></div></li>
+        <li><div><b>Verify on a pilot Mac</b><p>Check <code class="inl">/Library/Managed Preferences/xyz.techitout.appAutoPatch.plist</code>, then <code class="inl">sudo launchctl print system/xyz.techitout.aap</code>, then <code class="inl">/Library/Management/AppAutoPatch/logs/aap.log</code>. ${im===0?"Silent mode shows no dialogs, so the log is your only signal.":"Trigger a run with <code class=\"inl\">sudo appautopatch --workflow-install-now</code> to see the dialogs."}</p></div></li>
+        <li><div><b>Widen the assignment</b><p>Move to broader groups once a full deferral cycle (${esc(String(S.include.DaysUntilReset?S.values.DaysUntilReset:7))} days) has passed cleanly.</p></div></li>
+      </ol>`;
+      break;
+    }
+  }
+  b.innerHTML=html;
+  b.querySelectorAll('[data-act="copy"]').forEach(x=>x.onclick=()=>copyText(currentText));
+  b.querySelectorAll('[data-act="dl"]').forEach(x=>x.onclick=()=>download(x.dataset.name,currentText));
+  b.querySelectorAll('[data-act="all"]').forEach(x=>x.onclick=downloadAll);
+  const pw=b.querySelector("#prefWrap"); if(pw) pw.onchange=()=>{ prefWrap=pw.checked; renderOut(); };
+  const rg=b.querySelector("#regen"); if(rg) rg.onclick=()=>{ S.uuids={}; renderOut(); save(); toast("New UUIDs generated"); };
+  b.querySelectorAll("[data-goto]").forEach(x=>x.onclick=()=>setL(x.dataset.goto));
+}
+
+/* ---------- install pane ---------- */
+function syncInstall(){
+  document.querySelectorAll("#method button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===S.method));
+  $("#m-script").hidden=S.method!=="script"; $("#m-pkg").hidden=S.method!=="pkg";
+  $("#ref").value=S.ref; $("#refCustomWrap").hidden=S.ref!=="custom"; $("#refCustom").value=S.refCustom;
+  $("#hash").value=S.hash;
+  const known=HASHES[S.ref];
+  $("#hashHelp").textContent = S.ref==="custom" ? "Paste the hash you computed for your ref." :
+    known && S.hash.trim()===known ? `Pre-filled from the ${S.ref} file as published on ${HASH_DATE}.` : known ? "Edited. The published hash for this ref is "+known.slice(0,12)+"…" : "";
+  $("#hashCmd").textContent=`curl -sL https://raw.githubusercontent.com/App-Auto-Patch/App-Auto-Patch/${refValue()}/App-Auto-Patch-via-Dialog.zsh | shasum -a 256`;
+  document.querySelectorAll("#reinstall button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===S.reinstall));
+  const v=expectedVersion();
+  $("#reinstallHelp").textContent = {
+    missing:"Installs once. After that AAP's own self-update keeps the script current, and the daily script run only repairs Macs where AAP was removed.",
+    older: v?`Reinstalls when the Mac reports a version below ${v}. Newer self-updated installs are left alone.`:"Needs a Version_ tag to compare against; behaves like “Install only if missing” for this ref.",
+    always:"Re-runs the installer every time Intune runs the script. Set script frequency to Not configured to avoid repeated reinstalls."
+  }[S.reinstall];
+  for(const id of ["flagResetDefaults","flagResetLabels","flagVerbose"]) $("#"+id).checked=S[id];
+  $("#org").value=S.org; $("#idPrefix").value=S.idPrefix; $("#xLogin").checked=S.xLogin; $("#xNotif").checked=S.xNotif; $("#notifStyle").value=S.notifStyle; $("#ca").value=S.ca;
+  $("#notifOpts").hidden=!S.xNotif;
+}
+function setL(t){
+  S.ltab=t; document.querySelectorAll("#ltabs .tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.l===t));
+  document.querySelectorAll("[data-lp]").forEach(p=>p.hidden=p.dataset.lp!==t); save();
+}
+function setO(t){
+  S.otab=t; document.querySelectorAll("#otabs .tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.o===t)); renderOut(); save();
+}
+
+document.querySelectorAll("#ltabs .tab").forEach(b=>b.onclick=()=>setL(b.dataset.l));
+document.querySelectorAll("#otabs .tab").forEach(b=>b.onclick=()=>setO(b.dataset.o));
+document.querySelectorAll("#method button").forEach(b=>b.onclick=()=>{ S.method=b.dataset.v; syncInstall(); if(S.otab==="pref"||S.otab==="mc"){} renderOut(); save(); });
+document.querySelectorAll("#reinstall button").forEach(b=>b.onclick=()=>{ S.reinstall=b.dataset.v; syncInstall(); renderOut(); save(); });
+$("#ref").onchange=e=>{ S.ref=e.target.value; if(HASHES[S.ref]) S.hash=HASHES[S.ref]; else if(S.ref==="custom") S.hash=""; syncInstall(); renderOut(); save(); };
+$("#refCustom").oninput=e=>{ S.refCustom=e.target.value; $("#hashCmd").textContent=`curl -sL https://raw.githubusercontent.com/App-Auto-Patch/App-Auto-Patch/${refValue()}/App-Auto-Patch-via-Dialog.zsh | shasum -a 256`; renderOut(); save(); };
+$("#hash").oninput=e=>{ S.hash=e.target.value.trim(); renderOut(); save(); const known=HASHES[S.ref]; $("#hashHelp").textContent= known? (S.hash===known?`Pre-filled from the ${S.ref} file as published on ${HASH_DATE}.`:"Edited. The published hash for this ref is "+known.slice(0,12)+"…"):""; };
+for(const id of ["flagResetDefaults","flagResetLabels","flagVerbose","xLogin","xNotif"]) $("#"+id).onchange=e=>{ S[id]=e.target.checked; syncInstall(); renderOut(); save(); };
+for(const id of ["org","idPrefix"]) $("#"+id).oninput=e=>{ S[id]=e.target.value; renderOut(); save(); };
+for(const id of ["notifStyle","ca"]) $("#"+id).onchange=e=>{ S[id]=e.target.value; renderOut(); save(); };
+document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>copyText($("#"+b.dataset.copy).textContent));
+
+$("#dlAll").onclick=downloadAll;
+$("#preset").onchange=e=>{ if(e.target.value){ applyPreset(e.target.value); e.target.value=""; } };
+$("#filter").oninput=()=>renderGroups();
+$("#btnOnlyOn").onclick=e=>{ S.onlyOn=!S.onlyOn; e.currentTarget.setAttribute("aria-pressed",S.onlyOn); e.currentTarget.textContent=S.onlyOn?"Show all keys":"Show ticked only"; renderGroups(); save(); };
+
+/* ---------- import ---------- */
+const dlg=$("#importDlg");
+$("#btnImport").onclick=()=>{ $("#importMsg").textContent=""; if(dlg.showModal) dlg.showModal(); else dlg.setAttribute("open",""); $("#importText").focus(); };
+$("#importCancel").onclick=e=>{ e.preventDefault(); dlg.close(); };
+$("#importForm").addEventListener("submit",e=>{
+  e.preventDefault();
+  const txt=$("#importText").value.trim(); if(!txt){ $("#importMsg").textContent="Paste some XML first."; return; }
+  let src=txt.replace(/<\?xml[^>]*\?>/,"").replace(/<!DOCTYPE[^>]*>/,"");
+  if(!/<dict/.test(src)) src=`<plist><dict>${src}</dict></plist>`;
+  const doc=new DOMParser().parseFromString(src,"application/xml");
+  if(doc.querySelector("parsererror")){ $("#importMsg").textContent="That isn't valid XML. Check for unclosed tags."; return; }
+  // find the dict that holds AAP keys: prefer one containing known keys
+  const dicts=[...doc.getElementsByTagName("dict")];
+  let best=null,bestScore=-1;
+  for(const d of dicts){ let sc=0; for(const c of d.children) if(c.tagName==="key"&&KNOWN.has(c.textContent.trim())) sc++; if(sc>bestScore){bestScore=sc;best=d;} }
+  if(!best||bestScore<=0){ $("#importMsg").textContent="No App Auto-Patch keys found."; return; }
+  for(const k of Object.keys(SCHEMA)){ S.values[k]=defaultFor(k); S.include[k]=false; }
+  const kids=[...best.children]; const extra={}; let count=0;
+  const fixes={DeadlineHardCount:"DeadlineCountHard"};
+  for(let i=0;i<kids.length;i++){
+    if(kids[i].tagName!=="key") continue;
+    let k=kids[i].textContent.trim(); const node=kids[i+1]; if(!node) break;
+    if(/^Payload/.test(k)) continue;
+    if(fixes[k]) k=fixes[k];
+    let raw = node.tagName==="true"?true:node.tagName==="false"?false:node.textContent;
+    if(!(k in SCHEMA)){ if(k!=="MosyleConsoleURL") extra[k]=raw; continue; }
+    const s=SCHEMA[k];
+    if(s.t==="boolean") raw = raw===true || /^(true|1|yes)$/i.test(String(raw));
+    else if(s.t==="integer") raw = parseInt(raw,10);
+    else if(typeof raw==="boolean") raw = raw?"TRUE":"FALSE";
+    else raw=String(raw);
+    S.values[k]=raw; S.include[k]=true; count++;
+  }
+  S.extraKeys=extra;
+  dlg.close(); renderGroups(); renderOut(); save();
+  toast(`Imported ${count} key${count===1?"":"s"}`+(Object.keys(extra).length?`, ${Object.keys(extra).length} unrecognised`:""));
+});
+
+/* ---------- boot ---------- */
+syncInstall(); setL(S.ltab||"install"); renderGroups();
+$("#btnOnlyOn").setAttribute("aria-pressed",S.onlyOn); $("#btnOnlyOn").textContent=S.onlyOn?"Show all keys":"Show ticked only";
+setO(S.otab||"pref");
+</script>
+</body></html>
