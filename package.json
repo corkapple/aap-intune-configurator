@@ -1,0 +1,11 @@
+{
+  "name": "aap-intune-configurator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/check.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.49.1"
+  }
+}

@@ -1,4 +1,9 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style>
 <title>AAP Intune Configurator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -148,7 +153,8 @@ ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
 .modal .mb{padding:18px;display:grid;gap:10px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
-
+</head>
+<body>
 <div class="wrap" id="app">
   <header class="top">
     <div>
@@ -167,13 +173,13 @@ ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
     <!-- LEFT: configure -->
     <section class="pane" aria-label="Configure">
       <div class="tabs" role="tablist" id="ltabs">
-        <button class="tab" role="tab" data-l="install" aria-selected="true"><span class="n">1</span>Install method</button>
-        <button class="tab" role="tab" data-l="settings" aria-selected="false"><span class="n">2</span>Settings</button>
-        <button class="tab" role="tab" data-l="extras" aria-selected="false"><span class="n">3</span>Profiles &amp; reporting</button>
+        <button type="button" class="tab" role="tab" id="lt-install" aria-controls="lp-install" data-l="install" aria-selected="true" tabindex="0"><span class="n">1</span>Install method</button>
+        <button type="button" class="tab" role="tab" id="lt-settings" aria-controls="lp-settings" data-l="settings" aria-selected="false" tabindex="-1"><span class="n">2</span>Settings</button>
+        <button type="button" class="tab" role="tab" id="lt-extras" aria-controls="lp-extras" data-l="extras" aria-selected="false" tabindex="-1"><span class="n">3</span>Profiles &amp; reporting</button>
       </div>
 
       <!-- Install -->
-      <div class="body" data-lp="install">
+      <div class="body" data-lp="install" id="lp-install" role="tabpanel" aria-labelledby="lt-install">
         <h2>How AAP gets onto the Mac</h2>
         <p class="lead">Intune can't run the AAP script directly because its macOS script agent drops the variables AAP needs to self-install. Pick a wrapper.</p>
         <div class="seg" id="method" role="group" aria-label="Install method">
@@ -238,7 +244,7 @@ ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
       </div>
 
       <!-- Settings -->
-      <div class="body" data-lp="settings" hidden>
+      <div class="body" data-lp="settings" id="lp-settings" role="tabpanel" aria-labelledby="lt-settings" hidden>
         <h2>Managed preferences</h2>
         <p class="lead">Ticked keys go into the configuration profile. Changing a value ticks it for you. Anything left unticked uses AAP's built-in default.</p>
         <div class="toolbar">
@@ -255,7 +261,10 @@ ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
           </label>
           <label class="f" style="flex:1;min-width:160px"><span class="help">Filter</span><input type="text" id="filter" placeholder="Key or title"></label>
           <div class="btns" style="align-self:end">
-            <button class="btn" id="btnImport">Import plist…</button>
+            <button type="button" class="btn" id="btnImport">Import plist…</button>
+            <button type="button" class="btn dl" id="btnSaveCfg" title="Save every choice in this configurator as a JSON file">Save config</button>
+            <button type="button" class="btn" id="btnLoadCfg" title="Load a JSON file saved with Save config">Load config…</button>
+            <input type="file" id="cfgFile" accept=".json,application/json" hidden>
             <button class="btn" id="btnOnlyOn" aria-pressed="false">Show ticked only</button>
           </div>
         </div>
@@ -263,7 +272,7 @@ ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
       </div>
 
       <!-- Extras -->
-      <div class="body" data-lp="extras" hidden>
+      <div class="body" data-lp="extras" id="lp-extras" role="tabpanel" aria-labelledby="lt-extras" hidden>
         <h2>Supporting profiles</h2>
         <p class="lead">Optional payloads bundled into the .mobileconfig on the right. The Intune preference file only ever carries AAP's own keys.</p>
         <div class="row">
@@ -295,14 +304,14 @@ ol.steps li p{margin:2px 0 0;color:var(--muted);font-size:13px}
     <!-- RIGHT: output -->
     <section class="pane out" aria-label="Generated output">
       <div class="tabs" role="tablist" id="otabs">
-        <button class="tab" role="tab" data-o="pref" aria-selected="true">Preference file</button>
-        <button class="tab" role="tab" data-o="mc" aria-selected="false">.mobileconfig</button>
-        <button class="tab" role="tab" data-o="inst" aria-selected="false">Install</button>
-        <button class="tab" role="tab" data-o="ca" aria-selected="false">Custom attribute</button>
-        <button class="tab" role="tab" data-o="un" aria-selected="false">Uninstall</button>
-        <button class="tab" role="tab" data-o="plan" aria-selected="false" id="planTab">Rollout plan</button>
+        <button type="button" class="tab" role="tab" id="ot-pref" aria-controls="obody" data-o="pref" aria-selected="true" tabindex="0">Preference file</button>
+        <button type="button" class="tab" role="tab" id="ot-mc" aria-controls="obody" data-o="mc" aria-selected="false" tabindex="-1">.mobileconfig</button>
+        <button type="button" class="tab" role="tab" id="ot-inst" aria-controls="obody" data-o="inst" aria-selected="false" tabindex="-1">Install</button>
+        <button type="button" class="tab" role="tab" id="ot-ca" aria-controls="obody" data-o="ca" aria-selected="false" tabindex="-1">Custom attribute</button>
+        <button type="button" class="tab" role="tab" id="ot-un" aria-controls="obody" data-o="un" aria-selected="false" tabindex="-1">Uninstall</button>
+        <button type="button" class="tab" role="tab" id="planTab" aria-controls="obody" data-o="plan" aria-selected="false" tabindex="-1">Rollout plan</button>
       </div>
-      <div class="body" id="obody"></div>
+      <div class="body" id="obody" role="tabpanel" aria-labelledby="ot-pref" tabindex="0"></div>
     </section>
   </div>
 </div>
@@ -455,17 +464,22 @@ function freshState(){
   };
 }
 let S = freshState();
+function mergeState(saved){
+  // Returns a complete state from a saved/imported one, or null if it isn't usable.
+  if(!saved || typeof saved!=="object" || !saved.values || typeof saved.values!=="object") return null;
+  const base=freshState(), next=Object.assign(base, saved);
+  next.values=Object.assign(freshState().values, saved.values);
+  next.include=Object.assign(freshState().include, (saved.include&&typeof saved.include==="object")?saved.include:{});
+  next.uuids=(saved.uuids&&typeof saved.uuids==="object")?saved.uuids:{};
+  next.extraKeys={};
+  for(const k of Object.keys(next.values)){ if(!(k in SCHEMA)){ delete next.values[k]; delete next.include[k]; continue; } next.values[k]=norm(k,next.values[k]); }
+  if(saved.ref==="Version_3.7.5" && saved.hash===HASHES["Version_3.7.5"]){ next.ref="Version_3.7.7"; next.hash=HASHES["Version_3.7.7"]; }
+  return next;
+}
 try{
-  const saved = JSON.parse(localStorage.getItem(STORE_KEY)||"null");
-  if(saved && saved.values){
-    const base=freshState();
-    S = Object.assign(base, saved);
-    S.values = Object.assign(base.values, saved.values);
-    S.include = Object.assign(base.include, saved.include);
-    for(const k of Object.keys(S.values)) S.values[k]=norm(k,S.values[k]);
-    if(saved.ref==="Version_3.7.5" && saved.hash===HASHES["Version_3.7.5"]){ S.ref="Version_3.7.7"; S.hash=HASHES["Version_3.7.7"]; }
-  }
-}catch(e){}
+  const merged = mergeState(JSON.parse(localStorage.getItem(STORE_KEY)||"null"));
+  if(merged) S = merged;
+}catch(e){ S = freshState(); }
 if(!Object.keys(S.include).some(k=>S.include[k])) applyPreset("balanced", true);
 
 function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){} }
@@ -1159,14 +1173,23 @@ function syncInstall(){
   $("#notifOpts").hidden=!S.xNotif;
 }
 function setL(t){
-  S.ltab=t; document.querySelectorAll("#ltabs .tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.l===t));
+  S.ltab=t; document.querySelectorAll("#ltabs .tab").forEach(b=>{ const on=b.dataset.l===t; b.setAttribute("aria-selected",on); b.tabIndex=on?0:-1; });
   document.querySelectorAll("[data-lp]").forEach(p=>p.hidden=p.dataset.lp!==t); save();
 }
 function setO(t){
-  S.otab=t; document.querySelectorAll("#otabs .tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.o===t)); renderOut(); save();
+  S.otab=t; document.querySelectorAll("#otabs .tab").forEach(b=>{ const on=b.dataset.o===t; b.setAttribute("aria-selected",on); b.tabIndex=on?0:-1; });
+  $("#obody").setAttribute("aria-labelledby", t==="plan"?"planTab":"ot-"+t); renderOut(); save();
 }
 
 document.querySelectorAll("#ltabs .tab").forEach(b=>b.onclick=()=>setL(b.dataset.l));
+// Arrow keys, Home and End move between tabs (WAI-ARIA tabs pattern, automatic activation)
+for(const [list, attr, fn] of [["#ltabs","l",t=>setL(t)],["#otabs","o",t=>setO(t)]]){
+  $(list).addEventListener("keydown", e=>{
+    const tabs=[...document.querySelectorAll(list+" .tab")], i=tabs.indexOf(document.activeElement); if(i<0) return;
+    const j={ArrowRight:(i+1)%tabs.length,ArrowLeft:(i-1+tabs.length)%tabs.length,Home:0,End:tabs.length-1}[e.key];
+    if(j===undefined) return; e.preventDefault(); fn(tabs[j].dataset[attr]); tabs[j].focus();
+  });
+}
 document.querySelectorAll("#otabs .tab").forEach(b=>b.onclick=()=>setO(b.dataset.o));
 document.querySelectorAll("#method button").forEach(b=>b.onclick=()=>{ S.method=b.dataset.v; syncInstall(); if(S.otab==="pref"||S.otab==="mc"){} renderOut(); save(); });
 document.querySelectorAll("#reinstall button").forEach(b=>b.onclick=()=>{ S.reinstall=b.dataset.v; syncInstall(); renderOut(); save(); });
@@ -1221,9 +1244,46 @@ $("#importForm").addEventListener("submit",e=>{
   toast(`Imported ${count} key${count===1?"":"s"}`+(Object.keys(extra).length?`, ${Object.keys(extra).length} unrecognised`:""));
 });
 
+/* ---------- configurator backup (JSON) ---------- */
+const CONFIG_SCHEMA_VERSION = 1;
+const CONFIG_FIELDS = ["method","ref","refCustom","hash","reinstall","flagResetDefaults","flagResetLabels","flagVerbose","org","idPrefix","xLogin","xNotif","notifStyle","ca","uuids"];
+function exportConfig(){
+  const state={values:{}, include:{}};
+  for(const k of Object.keys(SCHEMA)){ if(S.include[k]){ state.values[k]=S.values[k]; state.include[k]=true; } }
+  for(const f of CONFIG_FIELDS) state[f]=S[f];
+  return JSON.stringify({tool:"aap-intune-configurator", schemaVersion:CONFIG_SCHEMA_VERSION, aapVersion:"3.7.7", exported:new Date().toISOString(), state}, null, 2)+"\n";
+}
+function importConfig(obj){
+  if(!obj || obj.tool!=="aap-intune-configurator" || !obj.state) throw new Error("This isn't a configurator config file.");
+  if(typeof obj.schemaVersion!=="number" || obj.schemaVersion>CONFIG_SCHEMA_VERSION) throw new Error("This config was saved by a newer version of the configurator.");
+  const unknown=Object.keys(obj.state.values||{}).filter(k=>!(k in SCHEMA));
+  const picked={values:obj.state.values||{}, include:obj.state.include||{}};
+  for(const f of CONFIG_FIELDS) if(f in obj.state) picked[f]=obj.state[f];
+  const next=mergeState(picked); if(!next) throw new Error("The config file has no settings in it.");
+  next.ltab=S.ltab; next.otab=S.otab; next.onlyOn=S.onlyOn;
+  next.extraKeys=Object.fromEntries(unknown.map(k=>[k,obj.state.values[k]]));
+  S=next; syncInstall(); renderGroups(); renderOut(); save();
+  return unknown.length;
+}
+$("#btnSaveCfg").onclick=()=>{
+  const name=`aap-intune-config-${new Date().toISOString().slice(0,10)}.json`, text=exportConfig();
+  if(!inFrame){ blobSave(name,new Blob([text],{type:"application/json"})); toast("Saved "+name); return; }
+  saveBlob(name, new Blob([text],{type:"application/json"}));
+};
+$("#btnLoadCfg").onclick=()=>$("#cfgFile").click();
+$("#cfgFile").onchange=e=>{
+  const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ const n=importConfig(JSON.parse(String(r.result))); toast(n?`Config loaded; ${n} unrecognised key${n===1?"":"s"} dropped`:"Config loaded"); }
+                 catch(err){ toast(err instanceof SyntaxError?"That file isn't valid JSON.":err.message); } };
+  r.onerror=()=>toast("Couldn't read that file.");
+  r.readAsText(f);
+};
+
 /* ---------- boot ---------- */
 syncInstall(); setL(S.ltab||"install"); renderGroups();
 $("#btnOnlyOn").setAttribute("aria-pressed",S.onlyOn); $("#btnOnlyOn").textContent=S.onlyOn?"Show all keys":"Show ticked only";
 setO(S.otab||"pref");
 </script>
-</body></html>
+</body>
+</html>

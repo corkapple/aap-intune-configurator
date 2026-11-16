@@ -6,12 +6,14 @@ Everything runs locally in your browser. Nothing you type is sent anywhere.
 
 ## Use it
 
-Open `index.html` in any browser, or turn on GitHub Pages for this repository and use the hosted copy.
+Open `index.html` in any browser, or turn on GitHub Pages for this repository and use the hosted copy. It is one self-contained file, so it also works offline.
 
 1. **Install method.** Choose a platform script (downloads AAP from GitHub and checks its SHA-256 hash) or the release `.pkg`.
 2. **Settings.** Pick a preset, or tick and set any of AAP's managed preferences. You can also import an existing `.plist`, `.mobileconfig` or Intune preference file.
 3. **Profiles and reporting.** Optionally add the managed login item and swiftDialog notification payloads, and choose what the Intune custom attribute reports.
 4. **Download all files (.zip)**, then follow the README inside the zip.
+
+Use **Save config** to keep every choice as a JSON file, and **Load config** to restore it later or hand it to a colleague. The file carries a `schemaVersion`, so older saves keep loading as the settings list changes.
 
 ## What it generates
 
@@ -46,6 +48,23 @@ To pin a newer release, choose **Custom tag or commit** and paste its hash:
 
 ```sh
 curl -sL https://raw.githubusercontent.com/App-Auto-Patch/App-Auto-Patch/Version_X.Y.Z/App-Auto-Patch-via-Dialog.zsh | shasum -a 256
+```
+
+## Tests
+
+`tests/check.mjs` opens `index.html` in headless Chromium and checks every preset against every pinned release. It verifies that:
+
+- the preference file, plist and `.mobileconfig` are well-formed
+- the install script pins the right ref and hash
+- booleans use the right form for each AAP version
+- a config survives a save-and-load round trip
+- the zip bundle is valid
+
+```sh
+npm install
+npx playwright install chromium
+npm test                     # offline checks
+npm test -- --verify-hashes  # also re-downloads each pinned AAP script and checks its SHA-256
 ```
 
 ## Credits
